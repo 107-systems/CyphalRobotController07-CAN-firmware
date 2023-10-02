@@ -4,12 +4,12 @@ on:
   pull_request:
     paths:
       - ".github/workflows/compile-fw.yml"
-      - "CyphalPicoBase-CAN-firmware.ino"
+      - "CyphalRobotController07-CAN-firmware.ino"
 
   push:
     paths:
       - ".github/workflows/compile-fw.yml"
-      - "CyphalPicoBase-CAN-firmware.ino"
+      - "CyphalRobotController07-CAN-firmware.ino"
 
 jobs:
   build:
