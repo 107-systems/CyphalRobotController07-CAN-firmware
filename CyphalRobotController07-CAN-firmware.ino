@@ -77,6 +77,7 @@ cyphal::Node::Heap<cyphal::Node::DEFAULT_O1HEAP_SIZE> node_heap;
 cyphal::Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
 
 cyphal::Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>(1*1000*1000UL /* = 1 sec in usecs. */);
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> internal_temperature_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 
@@ -132,8 +133,11 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 /* REGISTER ***************************************************************************/
 
 static uint16_t     node_id                      = std::numeric_limits<uint16_t>::max();
+static CanardPortID port_id_internal_temperature = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
+
+static uint16_t update_period_ms_internaltemperature = 10*1000;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -143,6 +147,8 @@ const auto node_registry = node_hdl.create_registry();
 
 const auto reg_rw_cyphal_node_id                            = node_registry->expose("cyphal.node.id",                           {true}, node_id);
 const auto reg_rw_cyphal_node_description                   = node_registry->expose("cyphal.node.description",                  {true}, node_description);
+const auto reg_rw_cyphal_pub_internaltemperature_id         = node_registry->expose("cyphal.pub.internaltemperature.id",        {true}, port_id_internal_temperature);
+const auto reg_ro_cyphal_pub_internaltemperature_type       = node_registry->route ("cyphal.pub.internaltemperature.type",      {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
@@ -199,6 +205,9 @@ void setup()
     node_id = 0;
   node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
 
+  if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
+    internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
+
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
       port_id_output0,
@@ -221,7 +230,9 @@ void setup()
           digitalWrite(OUTPUT_1_PIN, LOW);
       });
 
-/* NODE INFO **************************************************************************/
+    if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
+
+  /* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
   (
     /* cyphal.node.Version.1.0 protocol_version */
@@ -289,6 +300,7 @@ void loop()
    * different intervals.
    */
   static unsigned long prev_heartbeat = 0;
+  static unsigned long prev_internal_temperature = 0;
 
   unsigned long const now = millis();
 
@@ -305,6 +317,19 @@ void loop()
     msg.vendor_specific_status_code = 0;
 
     heartbeat_pub->publish(msg);
+  }
+
+  if((now - prev_internal_temperature) > (update_period_ms_internaltemperature))
+  {
+    float const temperature = analogReadTemp();
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
+
+    uavcan::primitive::scalar::Real32_1_0 uavcan_internal_temperature;
+    uavcan_internal_temperature.value = temperature;
+    if(internal_temperature_pub) internal_temperature_pub->publish(uavcan_internal_temperature);
+
+    prev_internal_temperature = now;
   }
 
   /* Feed the watchdog only if not an async reset is
