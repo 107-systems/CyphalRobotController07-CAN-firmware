@@ -320,6 +320,7 @@ void loop()
 
 void onReceiveBufferFull(CanardFrame const & frame)
 {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   node_hdl.onCanFrameReceived(frame);
 }
 
@@ -364,6 +365,7 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
   }
   else if (req.command == ExecuteCommand::Request_1_1::COMMAND_POWER_OFF)
   {
+    digitalWrite(LED_BUILTIN, HIGH);
     /* Send the response. */
     rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
