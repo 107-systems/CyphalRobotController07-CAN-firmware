@@ -13,7 +13,6 @@
 
 #include <SPI.h>
 #include <Wire.h>
-#include <Servo.h>
 
 #include <107-Arduino-Cyphal.h>
 #include <107-Arduino-Cyphal-Support.h>
@@ -43,6 +42,8 @@ static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MCP2515_CS_PIN  = 17;
 static int const MCP2515_INT_PIN = 20;
+static int const OUTPUT_0_PIN          = 21; /* GP21 */
+static int const OUTPUT_1_PIN          = 22; /* GP22 */
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -76,6 +77,8 @@ cyphal::Node::Heap<cyphal::Node::DEFAULT_O1HEAP_SIZE> node_heap;
 cyphal::Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
 
 cyphal::Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>(1*1000*1000UL /* = 1 sec in usecs. */);
+
+cyphal::Subscription output_0_subscription, output_1_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
 
@@ -129,6 +132,8 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 /* REGISTER ***************************************************************************/
 
 static uint16_t     node_id                      = std::numeric_limits<uint16_t>::max();
+static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -138,6 +143,10 @@ const auto node_registry = node_hdl.create_registry();
 
 const auto reg_rw_cyphal_node_id                            = node_registry->expose("cyphal.node.id",                           {true}, node_id);
 const auto reg_rw_cyphal_node_description                   = node_registry->expose("cyphal.node.description",                  {true}, node_description);
+const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
+const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
+const auto reg_ro_cyphal_sub_output1_type                   = node_registry->route ("cyphal.sub.output1.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 
 #endif /* __GNUC__ >= 11 */
 
@@ -190,7 +199,29 @@ void setup()
     node_id = 0;
   node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
 
-  /* NODE INFO **************************************************************************/
+  if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
+    output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
+      port_id_output0,
+      [](uavcan::primitive::scalar::Bit_1_0 const & msg)
+      {
+        if(msg.value)
+          digitalWrite(OUTPUT_0_PIN, HIGH);
+        else
+          digitalWrite(OUTPUT_0_PIN, LOW);
+      });
+
+  if (port_id_output1 != std::numeric_limits<CanardPortID>::max())
+    output_1_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
+      port_id_output1,
+      [](uavcan::primitive::scalar::Bit_1_0 const & msg)
+      {
+        if(msg.value)
+          digitalWrite(OUTPUT_1_PIN, HIGH);
+        else
+          digitalWrite(OUTPUT_1_PIN, LOW);
+      });
+
+/* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
   (
     /* cyphal.node.Version.1.0 protocol_version */
@@ -210,6 +241,16 @@ void setup()
     /* saturated uint8[<=50] name */
     "107-systems.cyphal-robot-controller-07"
   );
+
+  /* Setup LED pins and initialize */
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+
+  /* Setup OUT0/OUT1. */
+  pinMode(OUTPUT_0_PIN, OUTPUT);
+  pinMode(OUTPUT_1_PIN, OUTPUT);
+  digitalWrite(OUTPUT_0_PIN, LOW);
+  digitalWrite(OUTPUT_1_PIN, LOW);
 
   /* Setup SPI access */
   SPI.begin();
