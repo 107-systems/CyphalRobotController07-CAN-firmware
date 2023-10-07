@@ -7,14 +7,14 @@
 /*-----------------------------
 constructor for class, not needed by Arduino but for complete class. does not do anything.
 */
-Ifx007t::Ifx007t() 
+Ifx007t::Ifx007t()
 {
 }
 
 /*-----------------------------
 destructor for class, not needed by Arduino but for complete class. Calls Arduino end function
 */
-Ifx007t::~Ifx007t() 
+Ifx007t::~Ifx007t()
 {
   end();
 }
@@ -22,7 +22,7 @@ Ifx007t::~Ifx007t()
 /*-----------------------------
 Arduino begin function. Forward data to initialize function
 */
-void Ifx007t::begin(byte bp_pwm1, byte bp_pwm2, byte bp_inh) 
+void Ifx007t::begin(byte bp_pwm1, byte bp_pwm2, byte bp_inh)
 {
   Ifx007t::p_pwm1=bp_pwm1;
   Ifx007t::p_pwm2=bp_pwm2;
@@ -35,7 +35,7 @@ void Ifx007t::begin(byte bp_pwm1, byte bp_pwm2, byte bp_inh)
 /*-----------------------------
 Arduino end function. stop SPI if enabled
 */
-void Ifx007t::end() 
+void Ifx007t::end()
 {
 }
 
