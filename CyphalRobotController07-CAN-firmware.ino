@@ -42,6 +42,7 @@ static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MCP2515_CS_PIN  = 17;
 static int const MCP2515_INT_PIN = 20;
+static int const EM_STOP_PIN           = 12;
 static int const OUTPUT_0_PIN          = 21; /* GP21 */
 static int const OUTPUT_1_PIN          = 22; /* GP22 */
 
@@ -78,6 +79,7 @@ cyphal::Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFram
 
 cyphal::Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>(1*1000*1000UL /* = 1 sec in usecs. */);
 cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> internal_temperature_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Bit_1_0> em_stop_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 
@@ -134,10 +136,12 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 
 static uint16_t     node_id                      = std::numeric_limits<uint16_t>::max();
 static CanardPortID port_id_internal_temperature = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_em_stop              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
+static uint16_t update_period_ms_em_stop             =     500;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -149,10 +153,14 @@ const auto reg_rw_cyphal_node_id                            = node_registry->exp
 const auto reg_rw_cyphal_node_description                   = node_registry->expose("cyphal.node.description",                  {true}, node_description);
 const auto reg_rw_cyphal_pub_internaltemperature_id         = node_registry->expose("cyphal.pub.internaltemperature.id",        {true}, port_id_internal_temperature);
 const auto reg_ro_cyphal_pub_internaltemperature_type       = node_registry->route ("cyphal.pub.internaltemperature.type",      {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_em_stop_id                     = node_registry->expose("cyphal.pub.em_stop.id",                    {true}, port_id_em_stop);
+const auto reg_ro_cyphal_pub_em_stop_type                   = node_registry->route ("cyphal.pub.em_stop.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
 const auto reg_ro_cyphal_sub_output1_type                   = node_registry->route ("cyphal.sub.output1.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_pico_update_period_ms_internaltemperature = node_registry->expose("pico.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
+const auto reg_rw_pico_update_period_ms_em_stop             = node_registry->expose("pico.update_period_ms.em_stop",             {true}, update_period_ms_em_stop);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -230,7 +238,11 @@ void setup()
           digitalWrite(OUTPUT_1_PIN, LOW);
       });
 
-    if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
+  if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
+    em_stop_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>(port_id_em_stop, 1*1000*1000UL /* = 1 sec in usecs. */);
+  /* set factory settings */
+  if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
+  if(update_period_ms_em_stop==0xFFFF)             update_period_ms_em_stop=500;
 
   /* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -256,6 +268,7 @@ void setup()
   /* Setup LED pins and initialize */
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
+  pinMode(EM_STOP_PIN, INPUT_PULLUP);
 
   /* Setup OUT0/OUT1. */
   pinMode(OUTPUT_0_PIN, OUTPUT);
@@ -301,6 +314,7 @@ void loop()
    */
   static unsigned long prev_heartbeat = 0;
   static unsigned long prev_internal_temperature = 0;
+  static unsigned long prev_em_stop = 0;
 
   unsigned long const now = millis();
 
@@ -330,6 +344,14 @@ void loop()
     if(internal_temperature_pub) internal_temperature_pub->publish(uavcan_internal_temperature);
 
     prev_internal_temperature = now;
+  }
+  if((now - prev_em_stop) > update_period_ms_em_stop)
+  {
+    uavcan::primitive::scalar::Bit_1_0 uavcan_em_stop;
+    uavcan_em_stop.value = digitalRead(EM_STOP_PIN);
+    if(em_stop_pub) em_stop_pub->publish(uavcan_em_stop);
+
+    prev_em_stop = now;
   }
 
   /* Feed the watchdog only if not an async reset is
