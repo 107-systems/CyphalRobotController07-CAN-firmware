@@ -20,6 +20,7 @@
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-littlefs.h>
 #include <107-Arduino-24LCxx.hpp>
+#include "ifx007t.h"
 
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
@@ -45,6 +46,12 @@ static int const MCP2515_INT_PIN = 20;
 static int const EM_STOP_PIN           = 12;
 static int const OUTPUT_0_PIN          = 21; /* GP21 */
 static int const OUTPUT_1_PIN          = 22; /* GP22 */
+#define MOT0_1 9
+#define MOT0_2 8
+#define MOT0_EN 11
+#define MOT1_1 7
+#define MOT1_2 6
+#define MOT1_EN 10
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -62,6 +69,9 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 /**************************************************************************************
  * GLOBAL VARIABLES
  **************************************************************************************/
+
+Ifx007t mot0;
+Ifx007t mot1;
 
 DEBUG_INSTANCE(80, Serial);
 
@@ -82,6 +92,7 @@ cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> internal_temperature_pu
 cyphal::Publisher<uavcan::primitive::scalar::Bit_1_0> em_stop_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
+cyphal::Subscription motor_0_subscription, motor_1_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
 
@@ -139,6 +150,8 @@ static CanardPortID port_id_internal_temperature = std::numeric_limits<CanardPor
 static CanardPortID port_id_em_stop              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor0               = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor1               = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_em_stop             =     500;
@@ -159,6 +172,10 @@ const auto reg_rw_cyphal_sub_output0_id                     = node_registry->exp
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
 const auto reg_ro_cyphal_sub_output1_type                   = node_registry->route ("cyphal.sub.output1.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_cyphal_sub_motor0_id                      = node_registry->expose("cyphal.sub.motor0.id",                     {true}, port_id_motor0);
+const auto reg_ro_cyphal_sub_motor0_type                    = node_registry->route ("cyphal.sub.motor0.type",                   {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_sub_motor1_id                      = node_registry->expose("cyphal.sub.motor1.id",                     {true}, port_id_motor1);
+const auto reg_ro_cyphal_sub_motor1_type                    = node_registry->route ("cyphal.sub.motor1.type",                   {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_pico_update_period_ms_internaltemperature = node_registry->expose("pico.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
 const auto reg_rw_pico_update_period_ms_em_stop             = node_registry->expose("pico.update_period_ms.em_stop",             {true}, update_period_ms_em_stop);
 
@@ -238,6 +255,22 @@ void setup()
           digitalWrite(OUTPUT_1_PIN, LOW);
       });
 
+  if (port_id_motor0 != std::numeric_limits<CanardPortID>::max())
+    motor_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Integer16_1_0>(
+      port_id_motor0,
+      [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
+      {
+        mot0.pwm(msg.value);
+      });
+
+  if (port_id_motor1 != std::numeric_limits<CanardPortID>::max())
+    motor_1_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Integer16_1_0>(
+      port_id_motor1,
+      [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
+      {
+        mot1.pwm(msg.value);
+      });
+
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
     em_stop_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>(port_id_em_stop, 1*1000*1000UL /* = 1 sec in usecs. */);
   /* set factory settings */
@@ -289,6 +322,10 @@ void setup()
 
   /* Leave configuration and enable MCP2515. */
   mcp2515.setNormalMode();
+
+  /* configure motor pwm output */
+  mot0.begin(MOT0_1,MOT0_2,MOT0_EN);
+  mot1.begin(MOT1_1,MOT1_2,MOT1_EN);
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
