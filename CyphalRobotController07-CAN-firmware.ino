@@ -41,20 +41,20 @@ using namespace uavcan::node;
 
 static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
-static int const MCP2515_CS_PIN  = 17;
-static int const MCP2515_INT_PIN = 20;
-static int const EM_STOP_PIN           = 12;
-static int const OUTPUT_0_PIN          = 21; /* GP21 */
-static int const OUTPUT_1_PIN          = 22; /* GP22 */
+static int const MCP2515_CS_PIN     = 17;
+static int const MCP2515_INT_PIN    = 20;
+static int const MOTOR0_1           = 9;
+static int const MOTOR0_2           = 8;
+static int const MOTOR1_1           = 7;
+static int const MOTOR1_2           = 6;
+static int const MOTOR1_EN          = 10;
+static int const MOTOR0_EN          = 11;
+static int const EM_STOP_PIN        = 12;
+static int const OUTPUT_0_PIN       = 21; /* GP21 */
+static int const OUTPUT_1_PIN       = 22; /* GP22 */
 static int const ANALOG_INPUT_0_PIN = 26;
 static int const ANALOG_INPUT_1_PIN = 27;
 static int const ANALOG_INPUT_2_PIN = 28;
-#define MOT0_1 9
-#define MOT0_2 8
-#define MOT0_EN 11
-#define MOT1_1 7
-#define MOT1_2 6
-#define MOT1_EN 10
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -354,8 +354,8 @@ void setup()
   mcp2515.setNormalMode();
 
   /* configure motor pwm output */
-  mot0.begin(MOT0_1,MOT0_2,MOT0_EN);
-  mot1.begin(MOT1_1,MOT1_2,MOT1_EN);
+  mot0.begin(MOTOR0_1,MOTOR0_2,MOTOR0_EN);
+  mot1.begin(MOTOR1_1,MOTOR1_2,MOTOR1_EN);
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
