@@ -21,7 +21,7 @@
 #include <107-Arduino-littlefs.h>
 #include <107-Arduino-24LCxx.hpp>
 #include <INA226_WE.h>
-#include <ADS1115_WE.h> 
+#include <ADS1115_WE.h>
 #include "ifx007t.h"
 
 #define DBG_ENABLE_ERROR
