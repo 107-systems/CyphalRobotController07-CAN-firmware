@@ -21,6 +21,7 @@
 #include <107-Arduino-littlefs.h>
 #include <107-Arduino-24LCxx.hpp>
 #include <INA226_WE.h>
+#include <ADS1115_WE.h> 
 #include "ifx007t.h"
 
 #define DBG_ENABLE_ERROR
@@ -77,6 +78,7 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 Ifx007t mot0;
 Ifx007t mot1;
 INA226_WE ina226 = INA226_WE();
+ADS1115_WE ads1115 = ADS1115_WE();
 
 DEBUG_INSTANCE(80, Serial);
 
@@ -103,6 +105,7 @@ cyphal::Publisher<uavcan::primitive::scalar::Bit_1_0> em_stop_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_0_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_1_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_2_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor0_bemf_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
@@ -173,6 +176,7 @@ static CanardPortID port_id_motor1               = std::numeric_limits<CanardPor
 static CanardPortID port_id_analog_input0        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input1        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input2        = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor0_bemf          = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_input_voltage       =  1*1000;
@@ -184,6 +188,7 @@ static uint16_t update_period_ms_em_stop             =     500;
 static uint16_t update_period_ms_analoginput0        =     500;
 static uint16_t update_period_ms_analoginput1        =     500;
 static uint16_t update_period_ms_analoginput2        =     500;
+static uint16_t update_period_ms_motor0_bemf         =    1000;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -213,6 +218,8 @@ const auto reg_rw_cyphal_pub_analoginput1_id                = node_registry->exp
 const auto reg_ro_cyphal_pub_analoginput1_type              = node_registry->route ("cyphal.pub.analoginput1.type",             {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_pub_analoginput2_id                = node_registry->expose("cyphal.pub.analoginput2.id",               {true}, port_id_analog_input2);
 const auto reg_ro_cyphal_pub_analoginput2_type              = node_registry->route ("cyphal.pub.analoginput2.type",             {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_motor0_bemf_id                 = node_registry->expose("cyphal.pub.motor0bemf.id",                 {true}, port_id_motor0_bemf);
+const auto reg_ro_cyphal_pub_motor0_bemf_type               = node_registry->route ("cyphal.pub.motor0bemf.type",               {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
@@ -231,6 +238,7 @@ const auto reg_rw_pico_update_period_ms_em_stop             = node_registry->exp
 const auto reg_rw_pico_update_period_ms_analoginput0        = node_registry->expose("pico.update_period_ms.analoginput0",        {true}, update_period_ms_analoginput0);
 const auto reg_rw_pico_update_period_ms_analoginput1        = node_registry->expose("pico.update_period_ms.analoginput1",        {true}, update_period_ms_analoginput1);
 const auto reg_rw_pico_update_period_ms_analoginput2        = node_registry->expose("pico.update_period_ms.analoginput2",        {true}, update_period_ms_analoginput2);
+const auto reg_rw_pico_update_period_ms_motor0_bemf         = node_registry->expose("pico.update_period_ms.motor0bemf",          {true}, update_period_ms_motor0_bemf);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -342,17 +350,20 @@ void setup()
     analog_input_1_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_analog_input1, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_analog_input2 != std::numeric_limits<CanardPortID>::max())
     analog_input_2_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_analog_input2, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_motor0_bemf != std::numeric_limits<CanardPortID>::max())
+    motor0_bemf_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor0_bemf, 1*1000*1000UL /* = 1 sec in usecs. */);
   /* set factory settings */
   if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
   if(update_period_ms_input_voltage==0xFFFF)       update_period_ms_input_voltage=1*1000;
   if(update_period_ms_input_current==0xFFFF)       update_period_ms_input_current=1*1000;
   if(update_period_ms_input_power==0xFFFF)         update_period_ms_input_power=1*1000;
-  if(update_period_ms_input_current_total==0xFFFF)       update_period_ms_input_current_total=5*1000;
-  if(update_period_ms_input_power_total==0xFFFF)         update_period_ms_input_power_total=5*1000;
+  if(update_period_ms_input_current_total==0xFFFF) update_period_ms_input_current_total=5*1000;
+  if(update_period_ms_input_power_total==0xFFFF)   update_period_ms_input_power_total=5*1000;
   if(update_period_ms_em_stop==0xFFFF)             update_period_ms_em_stop=500;
   if(update_period_ms_analoginput0==0xFFFF)        update_period_ms_analoginput0=500;
   if(update_period_ms_analoginput1==0xFFFF)        update_period_ms_analoginput1=500;
   if(update_period_ms_analoginput2==0xFFFF)        update_period_ms_analoginput2=500;
+  if(update_period_ms_motor0_bemf==0xFFFF)         update_period_ms_motor0_bemf=1000;
 
   /* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -410,6 +421,12 @@ void setup()
   ina226.setAverage(AVERAGE_512);
   ina226.setConversionTime(CONV_TIME_4156);
 
+  /* configure ADS1115 */
+  ads1115.init();
+  ads1115.setVoltageRange_mV(ADS1115_RANGE_6144); //comment line/change parameter to change range
+  ads1115.setCompareChannels(ADS1115_COMP_2_GND); //comment line/change parameter to change channel
+  ads1115.setMeasureMode(ADS1115_CONTINUOUS); //comment line/change parameter to change mode
+
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
   rp2040.wdt_reset();
@@ -438,6 +455,7 @@ void loop()
   static unsigned long prev_analog_input0 = 0;
   static unsigned long prev_analog_input1 = 0;
   static unsigned long prev_analog_input2 = 0;
+  static unsigned long prev_motor0_bemf = 0;
   static unsigned long prev_input_voltage = 0;
   static unsigned long prev_input_current = 0;
   static unsigned long prev_input_power = 0;
@@ -451,8 +469,18 @@ void loop()
   static float ina226_current_total_mAh = 0.0;
   static float ina226_power_total_mWh = 0.0;
 
+  static unsigned long prev_ads1115 = 0;
+  static int ads1115_data = 0;
+
   unsigned long const now = millis();
 
+  /* get ADS1115 data ever 100 ms */
+  if((now - prev_ads1115) > 100)
+  {
+    prev_ads1115 = now;
+
+    ads1115_data = ads1115.getRawResult();
+  }
   /* get INA226 data once/second */
   if((now - prev_ina226) > 1000)
   {
@@ -564,6 +592,14 @@ void loop()
     if(input_power_total_pub) input_power_total_pub->publish(uavcan_input_power_total);
 
     prev_input_power_total = now;
+  }
+  if((now - prev_motor0_bemf) > update_period_ms_motor0_bemf)
+  {
+    uavcan::primitive::scalar::Integer16_1_0 uavcan_motor0_bemf;
+    uavcan_motor0_bemf.value = ads1115_data;
+    if(motor0_bemf_pub) motor0_bemf_pub->publish(uavcan_motor0_bemf);
+
+    prev_motor0_bemf = now;
   }
   /* Feed the watchdog only if not an async reset is
    * pending because we want to restart via yakut.
