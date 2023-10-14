@@ -377,9 +377,11 @@ void setup()
   mot0.begin(MOTOR0_1,MOTOR0_2,MOTOR0_EN);
   mot1.begin(MOTOR1_1,MOTOR1_2,MOTOR1_EN);
 
-  /* configure INA226, current sensor */
+  /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
   ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
+  ina226.setAverage(AVERAGE_512);
+  ina226.setConversionTime(CONV_TIME_4156);
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
@@ -412,8 +414,23 @@ void loop()
   static unsigned long prev_input_voltage = 0;
   static unsigned long prev_input_current = 0;
 
+  static unsigned long prev_ina226 = 0;
+  static float ina226_busVoltage_V = 0.0;
+  static float ina226_current_mA = 0.0;
+  static float ina226_power_mW = 0.0; 
+
   unsigned long const now = millis();
 
+  /* get INA226 data once/second */
+  if((now - prev_ina226) > 1000)
+  {
+    prev_ina226 = now;
+
+  ina226.readAndClearFlags();
+  ina226_busVoltage_V = ina226.getBusVoltage_V();
+  ina226_current_mA = ina226.getCurrent_mA();
+  ina226_power_mW = ina226.getBusPower();
+  }
   /* Publish the heartbeat once/second */
   if((now - prev_heartbeat) > UPDATE_PERIOD_HEARTBEAT_ms)
   {
@@ -476,22 +493,16 @@ void loop()
   }
   if((now - prev_input_voltage) > (update_period_ms_input_voltage))
   {
-    ina226.readAndClearFlags();
-    float const input_voltage = ina226.getBusVoltage_V();
-
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_voltage;
-    uavcan_input_voltage.value = input_voltage;
+    uavcan_input_voltage.value = ina226_busVoltage_V;
     if(input_voltage_pub) input_voltage_pub->publish(uavcan_input_voltage);
 
     prev_input_voltage = now;
   }
   if((now - prev_input_current) > (update_period_ms_input_current))
   {
-    ina226.readAndClearFlags();
-    float const input_current = ina226.getCurrent_mA();
-
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_current;
-    uavcan_input_current.value = input_current;
+    uavcan_input_current.value = ina226_current_mA;
     if(input_current_pub) input_current_pub->publish(uavcan_input_current);
 
     prev_input_current = now;
