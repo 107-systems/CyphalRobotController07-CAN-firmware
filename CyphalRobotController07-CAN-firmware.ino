@@ -379,6 +379,7 @@ void setup()
 
   /* configure INA226, current sensor */
   ina226.init();
+  ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
