@@ -447,9 +447,9 @@ void loop()
   static unsigned long prev_ina226 = 0;
   static float ina226_busVoltage_V = 0.0;
   static float ina226_current_mA = 0.0;
-  static float ina226_power_mW = 0.0; 
+  static float ina226_power_mW = 0.0;
   static float ina226_current_total_mAh = 0.0;
-  static float ina226_power_total_mWh = 0.0; 
+  static float ina226_power_total_mWh = 0.0;
 
   unsigned long const now = millis();
 
