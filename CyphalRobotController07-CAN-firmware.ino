@@ -97,6 +97,8 @@ cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> internal_temperature_pu
 cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_voltage_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_current_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_power_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_current_total_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_power_total_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Bit_1_0> em_stop_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_0_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_1_pub;
@@ -161,6 +163,8 @@ static CanardPortID port_id_internal_temperature = std::numeric_limits<CanardPor
 static CanardPortID port_id_input_voltage        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_input_current        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_input_power          = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_current_total  = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_power_total    = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_em_stop              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
@@ -174,6 +178,8 @@ static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_input_voltage       =  1*1000;
 static uint16_t update_period_ms_input_current       =  1*1000;
 static uint16_t update_period_ms_input_power         =  1*1000;
+static uint16_t update_period_ms_input_current_total =  5*1000;
+static uint16_t update_period_ms_input_power_total   =  5*1000;
 static uint16_t update_period_ms_em_stop             =     500;
 static uint16_t update_period_ms_analoginput0        =     500;
 static uint16_t update_period_ms_analoginput1        =     500;
@@ -195,6 +201,10 @@ const auto reg_rw_cyphal_pub_input_current_id               = node_registry->exp
 const auto reg_ro_cyphal_pub_input_current_type             = node_registry->route ("cyphal.pub.inputcurrent.type",             {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_pub_input_power_id                 = node_registry->expose("cyphal.pub.inputpower.id",                 {true}, port_id_input_power);
 const auto reg_ro_cyphal_pub_input_power_type               = node_registry->route ("cyphal.pub.inputpower.type",               {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_current_total_id         = node_registry->expose("cyphal.pub.inputcurrenttotal.id",          {true}, port_id_input_current_total);
+const auto reg_ro_cyphal_pub_input_current_total_type       = node_registry->route ("cyphal.pub.inputcurrenttotal.type",        {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_power_total_id           = node_registry->expose("cyphal.pub.inputpowertotal.id",            {true}, port_id_input_power_total);
+const auto reg_ro_cyphal_pub_input_power_total_type         = node_registry->route ("cyphal.pub.inputpowertotal.type",          {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_pub_em_stop_id                     = node_registry->expose("cyphal.pub.em_stop.id",                    {true}, port_id_em_stop);
 const auto reg_ro_cyphal_pub_em_stop_type                   = node_registry->route ("cyphal.pub.em_stop.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_pub_analoginput0_id                = node_registry->expose("cyphal.pub.analoginput0.id",               {true}, port_id_analog_input0);
@@ -215,6 +225,8 @@ const auto reg_rw_pico_update_period_ms_internaltemperature = node_registry->exp
 const auto reg_rw_pico_update_period_ms_input_voltage       = node_registry->expose("pico.update_period_ms.inputvoltage",        {true}, update_period_ms_input_voltage);
 const auto reg_rw_pico_update_period_ms_input_current       = node_registry->expose("pico.update_period_ms.inputcurrent",        {true}, update_period_ms_input_current);
 const auto reg_rw_pico_update_period_ms_input_power         = node_registry->expose("pico.update_period_ms.inputpower",          {true}, update_period_ms_input_power);
+const auto reg_rw_pico_update_period_ms_input_current_total = node_registry->expose("pico.update_period_ms.inputcurrenttotal",   {true}, update_period_ms_input_current_total);
+const auto reg_rw_pico_update_period_ms_input_power_total   = node_registry->expose("pico.update_period_ms.inputpowertotal",     {true}, update_period_ms_input_power_total);
 const auto reg_rw_pico_update_period_ms_em_stop             = node_registry->expose("pico.update_period_ms.em_stop",             {true}, update_period_ms_em_stop);
 const auto reg_rw_pico_update_period_ms_analoginput0        = node_registry->expose("pico.update_period_ms.analoginput0",        {true}, update_period_ms_analoginput0);
 const auto reg_rw_pico_update_period_ms_analoginput1        = node_registry->expose("pico.update_period_ms.analoginput1",        {true}, update_period_ms_analoginput1);
@@ -279,6 +291,10 @@ void setup()
     input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
     input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
+    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
+  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
+    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
 
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
@@ -331,6 +347,8 @@ void setup()
   if(update_period_ms_input_voltage==0xFFFF)       update_period_ms_input_voltage=1*1000;
   if(update_period_ms_input_current==0xFFFF)       update_period_ms_input_current=1*1000;
   if(update_period_ms_input_power==0xFFFF)         update_period_ms_input_power=1*1000;
+  if(update_period_ms_input_current_total==0xFFFF)       update_period_ms_input_current_total=5*1000;
+  if(update_period_ms_input_power_total==0xFFFF)         update_period_ms_input_power_total=5*1000;
   if(update_period_ms_em_stop==0xFFFF)             update_period_ms_em_stop=500;
   if(update_period_ms_analoginput0==0xFFFF)        update_period_ms_analoginput0=500;
   if(update_period_ms_analoginput1==0xFFFF)        update_period_ms_analoginput1=500;
@@ -423,11 +441,15 @@ void loop()
   static unsigned long prev_input_voltage = 0;
   static unsigned long prev_input_current = 0;
   static unsigned long prev_input_power = 0;
+  static unsigned long prev_input_current_total = 0;
+  static unsigned long prev_input_power_total = 0;
 
   static unsigned long prev_ina226 = 0;
   static float ina226_busVoltage_V = 0.0;
   static float ina226_current_mA = 0.0;
   static float ina226_power_mW = 0.0; 
+  static float ina226_current_total_mAh = 0.0;
+  static float ina226_power_total_mWh = 0.0; 
 
   unsigned long const now = millis();
 
@@ -436,10 +458,12 @@ void loop()
   {
     prev_ina226 = now;
 
-  ina226.readAndClearFlags();
-  ina226_busVoltage_V = ina226.getBusVoltage_V();
-  ina226_current_mA = ina226.getCurrent_mA();
-  ina226_power_mW = ina226.getBusPower();
+    ina226.readAndClearFlags();
+    ina226_busVoltage_V = ina226.getBusVoltage_V();
+    ina226_current_mA = ina226.getCurrent_mA();
+    ina226_power_mW = ina226.getBusPower();
+    ina226_current_total_mAh += ina226_current_mA/3600.0;
+    ina226_power_total_mWh += ina226_power_mW/3600.0;
   }
   /* Publish the heartbeat once/second */
   if((now - prev_heartbeat) > UPDATE_PERIOD_HEARTBEAT_ms)
@@ -524,6 +548,22 @@ void loop()
     if(input_power_pub) input_power_pub->publish(uavcan_input_power);
 
     prev_input_power = now;
+  }
+  if((now - prev_input_current_total) > (update_period_ms_input_current_total))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_current_total;
+    uavcan_input_current_total.value = ina226_current_total_mAh;
+    if(input_current_total_pub) input_current_total_pub->publish(uavcan_input_current_total);
+
+    prev_input_current_total = now;
+  }
+  if((now - prev_input_power_total) > (update_period_ms_input_power_total))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_power_total;
+    uavcan_input_power_total.value = ina226_power_total_mWh;
+    if(input_power_total_pub) input_power_total_pub->publish(uavcan_input_power_total);
+
+    prev_input_power_total = now;
   }
   /* Feed the watchdog only if not an async reset is
    * pending because we want to restart via yakut.
