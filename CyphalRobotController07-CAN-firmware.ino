@@ -416,7 +416,7 @@ void setup()
   /* Setup LED pins and initialize */
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
-  pinMode(EM_STOP_PIN, INPUT_PULLUP);
+  pinMode(EM_STOP_PIN, INPUT_PULLDOWN);
 
   /* Setup OUT0/OUT1. */
   pinMode(OUTPUT_0_PIN, OUTPUT);
