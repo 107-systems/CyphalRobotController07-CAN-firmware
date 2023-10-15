@@ -439,6 +439,7 @@ void setup()
   mcp2515.setNormalMode();
 
   /* configure motor pwm output */
+  analogWriteFreq(4000);
   mot0.begin(MOTOR0_1,MOTOR0_2,MOTOR0_EN);
   mot1.begin(MOTOR1_1,MOTOR1_2,MOTOR1_EN);
 
