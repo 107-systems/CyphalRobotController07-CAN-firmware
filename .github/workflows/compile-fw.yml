@@ -53,6 +53,7 @@ jobs:
             - source-url: https://github.com/adafruit/Adafruit_NeoPixel_ZeroDMA.git
             - source-url: https://github.com/adafruit/Adafruit_ZeroDMA.git
             - source-url: https://github.com/wollewald/INA226_WE.git
+            - source-url: https://github.com/wollewald/ADS1115_WE.git
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: ./
 
