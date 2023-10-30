@@ -20,6 +20,8 @@
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-littlefs.h>
 #include <107-Arduino-24LCxx.hpp>
+#include <INA226_WE.h>
+#include <ADS1115_WE.h>
 #include "ifx007t.h"
 
 #define DBG_ENABLE_ERROR
@@ -75,6 +77,8 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 
 Ifx007t mot0;
 Ifx007t mot1;
+INA226_WE ina226 = INA226_WE();
+ADS1115_WE ads1115 = ADS1115_WE();
 
 DEBUG_INSTANCE(80, Serial);
 
@@ -92,10 +96,19 @@ cyphal::Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFram
 
 cyphal::Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>(1*1000*1000UL /* = 1 sec in usecs. */);
 cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> internal_temperature_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_voltage_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_current_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_power_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_current_total_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Real32_1_0> input_power_total_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Bit_1_0> em_stop_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_0_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_1_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> analog_input_2_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor0_current_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor1_current_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor0_bemf_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor1_bemf_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
@@ -153,6 +166,11 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 
 static uint16_t     node_id                      = std::numeric_limits<uint16_t>::max();
 static CanardPortID port_id_internal_temperature = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_voltage        = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_current        = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_power          = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_current_total  = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_input_power_total    = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_em_stop              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output0              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
@@ -161,12 +179,25 @@ static CanardPortID port_id_motor1               = std::numeric_limits<CanardPor
 static CanardPortID port_id_analog_input0        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input1        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input2        = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor0_current       = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor1_current       = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor0_bemf          = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor1_bemf          = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
+static uint16_t update_period_ms_input_voltage       =  1*1000;
+static uint16_t update_period_ms_input_current       =  1*1000;
+static uint16_t update_period_ms_input_power         =  1*1000;
+static uint16_t update_period_ms_input_current_total =  5*1000;
+static uint16_t update_period_ms_input_power_total   =  5*1000;
 static uint16_t update_period_ms_em_stop             =     500;
 static uint16_t update_period_ms_analoginput0        =     500;
 static uint16_t update_period_ms_analoginput1        =     500;
 static uint16_t update_period_ms_analoginput2        =     500;
+static uint16_t update_period_ms_motor0_current      =    1000;
+static uint16_t update_period_ms_motor1_current      =    1000;
+static uint16_t update_period_ms_motor0_bemf         =    1000;
+static uint16_t update_period_ms_motor1_bemf         =    1000;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -178,6 +209,16 @@ const auto reg_rw_cyphal_node_id                            = node_registry->exp
 const auto reg_rw_cyphal_node_description                   = node_registry->expose("cyphal.node.description",                  {true}, node_description);
 const auto reg_rw_cyphal_pub_internaltemperature_id         = node_registry->expose("cyphal.pub.internaltemperature.id",        {true}, port_id_internal_temperature);
 const auto reg_ro_cyphal_pub_internaltemperature_type       = node_registry->route ("cyphal.pub.internaltemperature.type",      {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_voltage_id               = node_registry->expose("cyphal.pub.inputvoltage.id",               {true}, port_id_input_voltage);
+const auto reg_ro_cyphal_pub_input_voltage_type             = node_registry->route ("cyphal.pub.inputvoltage.type",             {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_current_id               = node_registry->expose("cyphal.pub.inputcurrent.id",               {true}, port_id_input_current);
+const auto reg_ro_cyphal_pub_input_current_type             = node_registry->route ("cyphal.pub.inputcurrent.type",             {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_power_id                 = node_registry->expose("cyphal.pub.inputpower.id",                 {true}, port_id_input_power);
+const auto reg_ro_cyphal_pub_input_power_type               = node_registry->route ("cyphal.pub.inputpower.type",               {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_current_total_id         = node_registry->expose("cyphal.pub.inputcurrenttotal.id",          {true}, port_id_input_current_total);
+const auto reg_ro_cyphal_pub_input_current_total_type       = node_registry->route ("cyphal.pub.inputcurrenttotal.type",        {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_input_power_total_id           = node_registry->expose("cyphal.pub.inputpowertotal.id",            {true}, port_id_input_power_total);
+const auto reg_ro_cyphal_pub_input_power_total_type         = node_registry->route ("cyphal.pub.inputpowertotal.type",          {true}, []() { return "cyphal.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_pub_em_stop_id                     = node_registry->expose("cyphal.pub.em_stop.id",                    {true}, port_id_em_stop);
 const auto reg_ro_cyphal_pub_em_stop_type                   = node_registry->route ("cyphal.pub.em_stop.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_pub_analoginput0_id                = node_registry->expose("cyphal.pub.analoginput0.id",               {true}, port_id_analog_input0);
@@ -186,6 +227,14 @@ const auto reg_rw_cyphal_pub_analoginput1_id                = node_registry->exp
 const auto reg_ro_cyphal_pub_analoginput1_type              = node_registry->route ("cyphal.pub.analoginput1.type",             {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_pub_analoginput2_id                = node_registry->expose("cyphal.pub.analoginput2.id",               {true}, port_id_analog_input2);
 const auto reg_ro_cyphal_pub_analoginput2_type              = node_registry->route ("cyphal.pub.analoginput2.type",             {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_motor0_current_id              = node_registry->expose("cyphal.pub.motor0current.id",              {true}, port_id_motor0_current);
+const auto reg_ro_cyphal_pub_motor0_current_type            = node_registry->route ("cyphal.pub.motor0current.type",            {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_motor1_current_id              = node_registry->expose("cyphal.pub.motor1current.id",              {true}, port_id_motor1_current);
+const auto reg_ro_cyphal_pub_motor1_current_type            = node_registry->route ("cyphal.pub.motor1current.type",            {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_motor0_bemf_id                 = node_registry->expose("cyphal.pub.motor0bemf.id",                 {true}, port_id_motor0_bemf);
+const auto reg_ro_cyphal_pub_motor0_bemf_type               = node_registry->route ("cyphal.pub.motor0bemf.type",               {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_motor1_bemf_id                 = node_registry->expose("cyphal.pub.motor1bemf.id",                 {true}, port_id_motor1_bemf);
+const auto reg_ro_cyphal_pub_motor1_bemf_type               = node_registry->route ("cyphal.pub.motor1bemf.type",               {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "cyphal.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
@@ -195,10 +244,19 @@ const auto reg_ro_cyphal_sub_motor0_type                    = node_registry->rou
 const auto reg_rw_cyphal_sub_motor1_id                      = node_registry->expose("cyphal.sub.motor1.id",                     {true}, port_id_motor1);
 const auto reg_ro_cyphal_sub_motor1_type                    = node_registry->route ("cyphal.sub.motor1.type",                   {true}, []() { return "cyphal.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_pico_update_period_ms_internaltemperature = node_registry->expose("pico.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
+const auto reg_rw_pico_update_period_ms_input_voltage       = node_registry->expose("pico.update_period_ms.inputvoltage",        {true}, update_period_ms_input_voltage);
+const auto reg_rw_pico_update_period_ms_input_current       = node_registry->expose("pico.update_period_ms.inputcurrent",        {true}, update_period_ms_input_current);
+const auto reg_rw_pico_update_period_ms_input_power         = node_registry->expose("pico.update_period_ms.inputpower",          {true}, update_period_ms_input_power);
+const auto reg_rw_pico_update_period_ms_input_current_total = node_registry->expose("pico.update_period_ms.inputcurrenttotal",   {true}, update_period_ms_input_current_total);
+const auto reg_rw_pico_update_period_ms_input_power_total   = node_registry->expose("pico.update_period_ms.inputpowertotal",     {true}, update_period_ms_input_power_total);
 const auto reg_rw_pico_update_period_ms_em_stop             = node_registry->expose("pico.update_period_ms.em_stop",             {true}, update_period_ms_em_stop);
 const auto reg_rw_pico_update_period_ms_analoginput0        = node_registry->expose("pico.update_period_ms.analoginput0",        {true}, update_period_ms_analoginput0);
 const auto reg_rw_pico_update_period_ms_analoginput1        = node_registry->expose("pico.update_period_ms.analoginput1",        {true}, update_period_ms_analoginput1);
 const auto reg_rw_pico_update_period_ms_analoginput2        = node_registry->expose("pico.update_period_ms.analoginput2",        {true}, update_period_ms_analoginput2);
+const auto reg_rw_pico_update_period_ms_motor0_current      = node_registry->expose("pico.update_period_ms.motor0current",       {true}, update_period_ms_motor0_current);
+const auto reg_rw_pico_update_period_ms_motor1_current      = node_registry->expose("pico.update_period_ms.motor1current",       {true}, update_period_ms_motor1_current);
+const auto reg_rw_pico_update_period_ms_motor0_bemf         = node_registry->expose("pico.update_period_ms.motor0bemf",          {true}, update_period_ms_motor0_bemf);
+const auto reg_rw_pico_update_period_ms_motor1_bemf         = node_registry->expose("pico.update_period_ms.motor1bemf",          {true}, update_period_ms_motor1_bemf);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -253,6 +311,16 @@ void setup()
 
   if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
     internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_voltage != std::numeric_limits<CanardPortID>::max())
+    input_voltage_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_voltage, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current != std::numeric_limits<CanardPortID>::max())
+    input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
+    input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
+    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
+  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
+    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
 
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
@@ -300,12 +368,29 @@ void setup()
     analog_input_1_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_analog_input1, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_analog_input2 != std::numeric_limits<CanardPortID>::max())
     analog_input_2_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_analog_input2, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_motor0_current != std::numeric_limits<CanardPortID>::max())
+    motor0_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor0_current, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_motor1_current != std::numeric_limits<CanardPortID>::max())
+    motor1_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor1_current, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_motor0_bemf != std::numeric_limits<CanardPortID>::max())
+    motor0_bemf_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor0_bemf, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_motor1_bemf != std::numeric_limits<CanardPortID>::max())
+    motor1_bemf_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor1_bemf, 1*1000*1000UL /* = 1 sec in usecs. */);
   /* set factory settings */
   if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
+  if(update_period_ms_input_voltage==0xFFFF)       update_period_ms_input_voltage=1*1000;
+  if(update_period_ms_input_current==0xFFFF)       update_period_ms_input_current=1*1000;
+  if(update_period_ms_input_power==0xFFFF)         update_period_ms_input_power=1*1000;
+  if(update_period_ms_input_current_total==0xFFFF) update_period_ms_input_current_total=5*1000;
+  if(update_period_ms_input_power_total==0xFFFF)   update_period_ms_input_power_total=5*1000;
   if(update_period_ms_em_stop==0xFFFF)             update_period_ms_em_stop=500;
-    if(update_period_ms_analoginput0==0xFFFF)        update_period_ms_analoginput0=500;
-    if(update_period_ms_analoginput1==0xFFFF)        update_period_ms_analoginput1=500;
-    if(update_period_ms_analoginput2==0xFFFF)        update_period_ms_analoginput2=500;
+  if(update_period_ms_analoginput0==0xFFFF)        update_period_ms_analoginput0=500;
+  if(update_period_ms_analoginput1==0xFFFF)        update_period_ms_analoginput1=500;
+  if(update_period_ms_analoginput2==0xFFFF)        update_period_ms_analoginput2=500;
+  if(update_period_ms_motor0_current==0xFFFF)      update_period_ms_motor0_current=1000;
+  if(update_period_ms_motor1_current==0xFFFF)      update_period_ms_motor1_current=1000;
+  if(update_period_ms_motor0_bemf==0xFFFF)         update_period_ms_motor0_bemf=1000;
+  if(update_period_ms_motor1_bemf==0xFFFF)         update_period_ms_motor1_bemf=1000;
 
   /* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -331,7 +416,7 @@ void setup()
   /* Setup LED pins and initialize */
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
-  pinMode(EM_STOP_PIN, INPUT_PULLUP);
+  pinMode(EM_STOP_PIN, INPUT_PULLDOWN);
 
   /* Setup OUT0/OUT1. */
   pinMode(OUTPUT_0_PIN, OUTPUT);
@@ -354,8 +439,21 @@ void setup()
   mcp2515.setNormalMode();
 
   /* configure motor pwm output */
+  analogWriteFreq(4000);
   mot0.begin(MOTOR0_1,MOTOR0_2,MOTOR0_EN);
   mot1.begin(MOTOR1_1,MOTOR1_2,MOTOR1_EN);
+
+  /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
+  ina226.init();
+  ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
+  ina226.setAverage(AVERAGE_512);
+  ina226.setConversionTime(CONV_TIME_4156);
+
+  /* configure ADS1115 */
+  ads1115.init();
+  ads1115.setVoltageRange_mV(ADS1115_RANGE_6144); //comment line/change parameter to change range
+  ads1115.setCompareChannels(ADS1115_COMP_0_GND); //comment line/change parameter to change channel
+  ads1115.setMeasureMode(ADS1115_CONTINUOUS); //comment line/change parameter to change mode
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
@@ -385,9 +483,72 @@ void loop()
   static unsigned long prev_analog_input0 = 0;
   static unsigned long prev_analog_input1 = 0;
   static unsigned long prev_analog_input2 = 0;
+  static unsigned long prev_motor0_current = 0;
+  static unsigned long prev_motor1_current = 0;
+  static unsigned long prev_motor0_bemf = 0;
+  static unsigned long prev_motor1_bemf = 0;
+  static unsigned long prev_input_voltage = 0;
+  static unsigned long prev_input_current = 0;
+  static unsigned long prev_input_power = 0;
+  static unsigned long prev_input_current_total = 0;
+  static unsigned long prev_input_power_total = 0;
+
+  static unsigned long prev_ina226 = 0;
+  static float ina226_busVoltage_V = 0.0;
+  static float ina226_current_mA = 0.0;
+  static float ina226_power_mW = 0.0;
+  static float ina226_current_total_mAh = 0.0;
+  static float ina226_power_total_mWh = 0.0;
+
+  static unsigned long prev_ads1115 = 0;
+  static int ads1115_data0 = 0;
+  static int ads1115_data1 = 0;
+  static int ads1115_data2 = 0;
+  static int ads1115_data3 = 0;
 
   unsigned long const now = millis();
 
+  /* get ADS1115 data ever 100 ms */
+  if((now - prev_ads1115) > 100)
+  {
+    prev_ads1115 = now;
+    static int ads1115_count = 0;
+    ads1115_count ++;
+    if(ads1115_count >= 4) ads1115_count=0;
+
+    if(ads1115_count == 0)
+    {
+      ads1115_data0 = ads1115.getRawResult();
+      ads1115.setCompareChannels_nonblock(ADS1115_COMP_1_GND);
+    }
+    else if(ads1115_count == 1)
+    {
+      ads1115_data1 = ads1115.getRawResult();
+      ads1115.setCompareChannels_nonblock(ADS1115_COMP_2_GND);
+    }
+    else if(ads1115_count == 2)
+    {
+      ads1115_data2 = ads1115.getRawResult();
+      ads1115.setCompareChannels_nonblock(ADS1115_COMP_3_GND);
+    }
+    else if(ads1115_count == 3)
+    {
+      ads1115_data3 = ads1115.getRawResult();
+      ads1115.setCompareChannels_nonblock(ADS1115_COMP_0_GND);
+    }
+  }
+  /* get INA226 data once/second */
+  if((now - prev_ina226) > 1000)
+  {
+    prev_ina226 = now;
+
+    ina226.readAndClearFlags();
+    ina226_busVoltage_V = ina226.getBusVoltage_V();
+    ina226_current_mA = ina226.getCurrent_mA();
+    ina226_power_mW = ina226.getBusPower();
+    ina226_current_total_mAh += ina226_current_mA/3600.0;
+    ina226_power_total_mWh += ina226_power_mW/3600.0;
+  }
   /* Publish the heartbeat once/second */
   if((now - prev_heartbeat) > UPDATE_PERIOD_HEARTBEAT_ms)
   {
@@ -447,6 +608,78 @@ void loop()
     if(analog_input_2_pub) analog_input_2_pub->publish(uavcan_analog_input2);
 
     prev_analog_input2 = now;
+  }
+  if((now - prev_input_voltage) > (update_period_ms_input_voltage))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_voltage;
+    uavcan_input_voltage.value = ina226_busVoltage_V;
+    if(input_voltage_pub) input_voltage_pub->publish(uavcan_input_voltage);
+
+    prev_input_voltage = now;
+  }
+  if((now - prev_input_current) > (update_period_ms_input_current))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_current;
+    uavcan_input_current.value = ina226_current_mA;
+    if(input_current_pub) input_current_pub->publish(uavcan_input_current);
+
+    prev_input_current = now;
+  }
+  if((now - prev_input_power) > (update_period_ms_input_power))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_power;
+    uavcan_input_power.value = ina226_power_mW;
+    if(input_power_pub) input_power_pub->publish(uavcan_input_power);
+
+    prev_input_power = now;
+  }
+  if((now - prev_input_current_total) > (update_period_ms_input_current_total))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_current_total;
+    uavcan_input_current_total.value = ina226_current_total_mAh;
+    if(input_current_total_pub) input_current_total_pub->publish(uavcan_input_current_total);
+
+    prev_input_current_total = now;
+  }
+  if((now - prev_input_power_total) > (update_period_ms_input_power_total))
+  {
+    uavcan::primitive::scalar::Real32_1_0 uavcan_input_power_total;
+    uavcan_input_power_total.value = ina226_power_total_mWh;
+    if(input_power_total_pub) input_power_total_pub->publish(uavcan_input_power_total);
+
+    prev_input_power_total = now;
+  }
+  if((now - prev_motor0_current) > update_period_ms_motor0_current)
+  {
+    uavcan::primitive::scalar::Integer16_1_0 uavcan_motor0_current;
+    uavcan_motor0_current.value = ads1115_data0;
+    if(motor0_current_pub) motor0_current_pub->publish(uavcan_motor0_current);
+
+    prev_motor0_current = now;
+  }
+  if((now - prev_motor1_current) > update_period_ms_motor1_current)
+  {
+    uavcan::primitive::scalar::Integer16_1_0 uavcan_motor1_current;
+    uavcan_motor1_current.value = ads1115_data1;
+    if(motor1_current_pub) motor1_current_pub->publish(uavcan_motor1_current);
+
+    prev_motor1_current = now;
+  }
+  if((now - prev_motor0_bemf) > update_period_ms_motor0_bemf)
+  {
+    uavcan::primitive::scalar::Integer16_1_0 uavcan_motor0_bemf;
+    uavcan_motor0_bemf.value = ads1115_data2;
+    if(motor0_bemf_pub) motor0_bemf_pub->publish(uavcan_motor0_bemf);
+
+    prev_motor0_bemf = now;
+  }
+  if((now - prev_motor1_bemf) > update_period_ms_motor1_bemf)
+  {
+    uavcan::primitive::scalar::Integer16_1_0 uavcan_motor1_bemf;
+    uavcan_motor1_bemf.value = ads1115_data3;
+    if(motor1_bemf_pub) motor1_bemf_pub->publish(uavcan_motor1_bemf);
+
+    prev_motor1_bemf = now;
   }
   /* Feed the watchdog only if not an async reset is
    * pending because we want to restart via yakut.
