@@ -198,6 +198,10 @@ static uint16_t update_period_ms_motor0_current      =    1000;
 static uint16_t update_period_ms_motor1_current      =    1000;
 static uint16_t update_period_ms_motor0_bemf         =    1000;
 static uint16_t update_period_ms_motor1_bemf         =    1000;
+static uint16_t timeout_ms_motor0                    =    1000;
+static uint16_t timeout_ms_motor1                    =    1000;
+static unsigned long prev_motor0_update              = 0;
+static unsigned long prev_motor1_update              = 0;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -257,6 +261,8 @@ const auto reg_rw_pico_update_period_ms_motor0_current      = node_registry->exp
 const auto reg_rw_pico_update_period_ms_motor1_current      = node_registry->expose("pico.update_period_ms.motor1current",       {true}, update_period_ms_motor1_current);
 const auto reg_rw_pico_update_period_ms_motor0_bemf         = node_registry->expose("pico.update_period_ms.motor0bemf",          {true}, update_period_ms_motor0_bemf);
 const auto reg_rw_pico_update_period_ms_motor1_bemf         = node_registry->expose("pico.update_period_ms.motor1bemf",          {true}, update_period_ms_motor1_bemf);
+const auto reg_rw_pico_timeout_ms_motor0                    = node_registry->expose("pico.timeout_ms.motor0",                    {true}, timeout_ms_motor0);
+const auto reg_rw_pico_timeout_ms_motor1                    = node_registry->expose("pico.timeout_ms.motor1",                    {true}, timeout_ms_motor1);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -350,6 +356,7 @@ void setup()
       [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
       {
         mot0.pwm(msg.value);
+        prev_motor0_update=millis();
       });
 
   if (port_id_motor1 != std::numeric_limits<CanardPortID>::max())
@@ -358,6 +365,7 @@ void setup()
       [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
       {
         mot1.pwm(msg.value);
+        prev_motor1_update=millis();
       });
 
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
@@ -548,6 +556,21 @@ void loop()
     ina226_power_mW = ina226.getBusPower();
     ina226_current_total_mAh += ina226_current_mA/3600.0;
     ina226_power_total_mWh += ina226_power_mW/3600.0;
+  }
+  /* check motor timeout */
+  if(timeout_ms_motor0<0xFFFF)
+  {
+    if((now - prev_motor0_update) > timeout_ms_motor0)
+    {
+      mot0.pwm(0);
+    }
+  }
+  if(timeout_ms_motor1<0xFFFF)
+  {
+    if((now - prev_motor1_update) > timeout_ms_motor1)
+    {
+      mot1.pwm(0);
+    }
   }
   /* Publish the heartbeat once/second */
   if((now - prev_heartbeat) > UPDATE_PERIOD_HEARTBEAT_ms)
