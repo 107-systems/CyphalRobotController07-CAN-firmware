@@ -261,7 +261,7 @@ const auto reg_rw_pico_update_period_ms_motor0_current      = node_registry->exp
 const auto reg_rw_pico_update_period_ms_motor1_current      = node_registry->expose("pico.update_period_ms.motor1current",       {true}, update_period_ms_motor1_current);
 const auto reg_rw_pico_update_period_ms_motor0_bemf         = node_registry->expose("pico.update_period_ms.motor0bemf",          {true}, update_period_ms_motor0_bemf);
 const auto reg_rw_pico_update_period_ms_motor1_bemf         = node_registry->expose("pico.update_period_ms.motor1bemf",          {true}, update_period_ms_motor1_bemf);
-const auto reg_rw_pico_timeout_ms_motor0                    = node_registry->expose("pico.timeout_ms.motor0",                    {true}, timeout_ms_motor0);
+const auto reg_rw_pico_timeout_ms_motor0                    = node_registry->expose("crc07.timeout_ms.motor0",                    {true}, timeout_ms_motor0);
 const auto reg_rw_pico_timeout_ms_motor1                    = node_registry->expose("pico.timeout_ms.motor1",                    {true}, timeout_ms_motor1);
 
 #endif /* __GNUC__ >= 11 */
