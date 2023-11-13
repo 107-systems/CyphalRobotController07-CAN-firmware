@@ -356,7 +356,7 @@ void setup()
       [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
       {
         mot0.pwm(msg.value);
-        prev_motor0_update=millis();
+        prev_motor0_update = millis();
       });
 
   if (port_id_motor1 != std::numeric_limits<CanardPortID>::max())
