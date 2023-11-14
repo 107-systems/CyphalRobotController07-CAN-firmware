@@ -200,6 +200,8 @@ static uint16_t update_period_ms_motor0_bemf         =    1000;
 static uint16_t update_period_ms_motor1_bemf         =    1000;
 static uint16_t timeout_ms_motor0                    =    1000;
 static uint16_t timeout_ms_motor1                    =    1000;
+static bool reverse_motor_0                          = false;
+static bool reverse_motor_1                          = false;
 static unsigned long prev_motor0_update              = 0;
 static unsigned long prev_motor1_update              = 0;
 
@@ -263,6 +265,8 @@ const auto reg_rw_crc07_update_period_ms_motor0_bemf         = node_registry->ex
 const auto reg_rw_crc07_update_period_ms_motor1_bemf         = node_registry->expose("crc07.update_period_ms.motor1bemf",          {true}, update_period_ms_motor1_bemf);
 const auto reg_rw_crc07_timeout_ms_motor0                    = node_registry->expose("crc07.timeout_ms.motor0",                    {true}, timeout_ms_motor0);
 const auto reg_rw_crc07_timeout_ms_motor1                    = node_registry->expose("crc07.timeout_ms.motor1",                    {true}, timeout_ms_motor1);
+const auto reg_rw_crc07_reverse_motor0                       = node_registry->expose("crc07.motor_0.reverse",                      {true}, reverse_motor_0);
+const auto reg_rw_crc07_reverse_motor1                       = node_registry->expose("crc07.motor_1.reverse",                      {true}, reverse_motor_1);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -355,7 +359,11 @@ void setup()
       port_id_motor0,
       [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
       {
-        mot0.pwm(msg.value);
+        if (reverse_motor_0)
+          mot0.pwm(-1 * msg.value);
+        else
+          mot0.pwm(msg.value);
+
         prev_motor0_update = millis();
       });
 
@@ -364,7 +372,11 @@ void setup()
       port_id_motor1,
       [](uavcan::primitive::scalar::Integer16_1_0 const & msg)
       {
-        mot1.pwm(msg.value);
+        if (reverse_motor_1)
+          mot1.pwm(-1 * msg.value);
+        else
+          mot1.pwm(msg.value);
+
         prev_motor1_update=millis();
       });
 
