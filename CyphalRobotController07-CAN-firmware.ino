@@ -117,6 +117,8 @@ cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor0_current_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor1_current_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor0_bemf_pub;
 cyphal::Publisher<uavcan::primitive::scalar::Integer16_1_0> motor1_bemf_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer32_1_0> encoder0_pub;
+cyphal::Publisher<uavcan::primitive::scalar::Integer32_1_0> encoder1_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
@@ -191,6 +193,8 @@ static CanardPortID port_id_motor0_current       = std::numeric_limits<CanardPor
 static CanardPortID port_id_motor1_current       = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_motor0_bemf          = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_motor1_bemf          = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_encoder0             = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_encoder1             = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_input_voltage       =  1*1000;
@@ -206,6 +210,8 @@ static uint16_t update_period_ms_motor0_current      =    1000;
 static uint16_t update_period_ms_motor1_current      =    1000;
 static uint16_t update_period_ms_motor0_bemf         =    1000;
 static uint16_t update_period_ms_motor1_bemf         =    1000;
+static uint16_t update_period_ms_encoder0            =    1000;
+static uint16_t update_period_ms_encoder1            =    1000;
 static uint16_t timeout_ms_motor0                    =    1000;
 static uint16_t timeout_ms_motor1                    =    1000;
 static bool reverse_motor_0                          = false;
@@ -249,6 +255,10 @@ const auto reg_rw_cyphal_pub_motor0_bemf_id                 = node_registry->exp
 const auto reg_ro_cyphal_pub_motor0_bemf_type               = node_registry->route ("cyphal.pub.motor0bemf.type",               {true}, []() { return "uavcan.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_pub_motor1_bemf_id                 = node_registry->expose("cyphal.pub.motor1bemf.id",                 {true}, port_id_motor1_bemf);
 const auto reg_ro_cyphal_pub_motor1_bemf_type               = node_registry->route ("cyphal.pub.motor1bemf.type",               {true}, []() { return "uavcan.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_pub_encoder0_id                    = node_registry->expose("cyphal.pub.encoder0.id",                   {true}, port_id_encoder0);
+const auto reg_ro_cyphal_pub_encoder0_type                  = node_registry->route ("cyphal.pub.encoder0.type",                 {true}, []() { return "uavcan.primitive.scalar.Integer32.1.0"; });
+const auto reg_rw_cyphal_pub_encoder1_id                    = node_registry->expose("cyphal.pub.encoder1.id",                   {true}, port_id_encoder1);
+const auto reg_ro_cyphal_pub_encoder1_type                  = node_registry->route ("cyphal.pub.encoder1.type",                 {true}, []() { return "uavcan.primitive.scalar.Integer32.1.0"; });
 const auto reg_rw_cyphal_sub_output0_id                     = node_registry->expose("cyphal.sub.output0.id",                    {true}, port_id_output0);
 const auto reg_ro_cyphal_sub_output0_type                   = node_registry->route ("cyphal.sub.output0.type",                  {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_cyphal_sub_output1_id                     = node_registry->expose("cyphal.sub.output1.id",                    {true}, port_id_output1);
@@ -271,6 +281,8 @@ const auto reg_rw_crc07_update_period_ms_motor0_current      = node_registry->ex
 const auto reg_rw_crc07_update_period_ms_motor1_current      = node_registry->expose("crc07.update_period_ms.motor1current",       {true}, update_period_ms_motor1_current);
 const auto reg_rw_crc07_update_period_ms_motor0_bemf         = node_registry->expose("crc07.update_period_ms.motor0bemf",          {true}, update_period_ms_motor0_bemf);
 const auto reg_rw_crc07_update_period_ms_motor1_bemf         = node_registry->expose("crc07.update_period_ms.motor1bemf",          {true}, update_period_ms_motor1_bemf);
+const auto reg_rw_crc07_update_period_ms_encoder0            = node_registry->expose("crc07.update_period_ms.encoder0",            {true}, update_period_ms_encoder0);
+const auto reg_rw_crc07_update_period_ms_encoder1            = node_registry->expose("crc07.update_period_ms.encoder1",            {true}, update_period_ms_encoder1);
 const auto reg_rw_crc07_timeout_ms_motor0                    = node_registry->expose("crc07.timeout_ms.motor0",                    {true}, timeout_ms_motor0);
 const auto reg_rw_crc07_timeout_ms_motor1                    = node_registry->expose("crc07.timeout_ms.motor1",                    {true}, timeout_ms_motor1);
 const auto reg_rw_crc07_reverse_motor0                       = node_registry->expose("crc07.motor_0.reverse",                      {true}, reverse_motor_0);
@@ -404,6 +416,10 @@ void setup()
     motor0_bemf_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor0_bemf, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_motor1_bemf != std::numeric_limits<CanardPortID>::max())
     motor1_bemf_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer16_1_0>(port_id_motor1_bemf, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_encoder0 != std::numeric_limits<CanardPortID>::max())
+    encoder0_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer32_1_0>(port_id_encoder0, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_encoder1 != std::numeric_limits<CanardPortID>::max())
+    encoder1_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Integer32_1_0>(port_id_encoder1, 1*1000*1000UL /* = 1 sec in usecs. */);
   /* set factory settings */
   if(update_period_ms_internaltemperature==0xFFFF) update_period_ms_internaltemperature=10*1000;
   if(update_period_ms_input_voltage==0xFFFF)       update_period_ms_input_voltage=1*1000;
@@ -419,6 +435,8 @@ void setup()
   if(update_period_ms_motor1_current==0xFFFF)      update_period_ms_motor1_current=1000;
   if(update_period_ms_motor0_bemf==0xFFFF)         update_period_ms_motor0_bemf=1000;
   if(update_period_ms_motor1_bemf==0xFFFF)         update_period_ms_motor1_bemf=1000;
+  if(update_period_ms_encoder0==0xFFFF)            update_period_ms_encoder0=1000;
+  if(update_period_ms_encoder1==0xFFFF)            update_period_ms_encoder1=1000;
 
   /* NODE INFO **************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -519,6 +537,8 @@ void loop()
   static unsigned long prev_motor1_current = 0;
   static unsigned long prev_motor0_bemf = 0;
   static unsigned long prev_motor1_bemf = 0;
+  static unsigned long prev_encoder0 = 0;
+  static unsigned long prev_encoder1 = 0;
   static unsigned long prev_input_voltage = 0;
   static unsigned long prev_input_current = 0;
   static unsigned long prev_input_power = 0;
@@ -727,6 +747,22 @@ void loop()
     if(motor1_bemf_pub) motor1_bemf_pub->publish(uavcan_motor1_bemf);
 
     prev_motor1_bemf = now;
+  }
+  if((now - prev_encoder0) > update_period_ms_encoder0)
+  {
+    uavcan::primitive::scalar::Integer32_1_0 uavcan_encoder0;
+    uavcan_encoder0.value = encoder0.getCount();
+    if(encoder0_pub) encoder0_pub->publish(uavcan_encoder0);
+
+    prev_encoder0 = now;
+  }
+  if((now - prev_encoder1) > update_period_ms_encoder1)
+  {
+    uavcan::primitive::scalar::Integer32_1_0 uavcan_encoder1;
+    uavcan_encoder1.value = encoder1.getCount();
+    if(encoder1_pub) encoder1_pub->publish(uavcan_encoder1);
+
+    prev_encoder1 = now;
   }
   /* Feed the watchdog only if not an async reset is
    * pending because we want to restart via yakut.
