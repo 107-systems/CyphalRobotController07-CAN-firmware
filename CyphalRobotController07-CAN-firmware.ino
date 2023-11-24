@@ -23,6 +23,8 @@
 #include <INA226_WE.h>
 #include <ADS1115_WE.h>
 #include "ifx007t.h"
+#include "pio_encoder.h"
+
 
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
@@ -45,6 +47,10 @@ static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MCP2515_CS_PIN     = 17;
 static int const MCP2515_INT_PIN    = 20;
+static int const ENCODER0_A         = 2;
+static int const ENCODER0_B         = 3;
+static int const ENCODER1_A         = 14;
+static int const ENCODER1_B         = 15;
 static int const MOTOR0_1           = 9;
 static int const MOTOR0_2           = 8;
 static int const MOTOR1_1           = 7;
@@ -77,6 +83,8 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 
 Ifx007t mot0;
 Ifx007t mot1;
+PioEncoder encoder0(ENCODER0_A);
+PioEncoder encoder1(ENCODER1_A);
 INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 
@@ -462,6 +470,10 @@ void setup()
   analogWriteFreq(4000);
   mot0.begin(MOTOR0_1,MOTOR0_2,MOTOR0_EN);
   mot1.begin(MOTOR1_1,MOTOR1_2,MOTOR1_EN);
+
+  /* configure encoder input */
+  encoder0.begin();
+  encoder1.begin();
 
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
