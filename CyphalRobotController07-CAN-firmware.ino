@@ -218,6 +218,8 @@ static bool reverse_motor_0                          = false;
 static bool reverse_motor_1                          = false;
 static unsigned long prev_motor0_update              = 0;
 static unsigned long prev_motor1_update              = 0;
+static uint16_t motor0_counts_per_rotation           = 2*11*300;
+static uint16_t motor1_counts_per_rotation           = 2*11*300;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
@@ -287,6 +289,8 @@ const auto reg_rw_crc07_timeout_ms_motor0                    = node_registry->ex
 const auto reg_rw_crc07_timeout_ms_motor1                    = node_registry->expose("crc07.timeout_ms.motor1",                    {true}, timeout_ms_motor1);
 const auto reg_rw_crc07_reverse_motor0                       = node_registry->expose("crc07.motor_0.reverse",                      {true}, reverse_motor_0);
 const auto reg_rw_crc07_reverse_motor1                       = node_registry->expose("crc07.motor_1.reverse",                      {true}, reverse_motor_1);
+const auto reg_rw_crc07_motor0_counts_per_rotation           = node_registry->expose("crc07.motor_0.counts_per_rotation",          {true}, motor0_counts_per_rotation);
+const auto reg_rw_crc07_motor1_counts_per_rotation           = node_registry->expose("crc07.motor_1.counts_per_rotation",          {true}, motor1_counts_per_rotation);
 
 #endif /* __GNUC__ >= 11 */
 
