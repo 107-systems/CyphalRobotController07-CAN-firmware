@@ -88,6 +88,11 @@ PioEncoder encoder1(ENCODER1_A);
 INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 
+static int motor0_default_pwm = 0;
+static int motor1_default_pwm = 0;
+static int motor0_ticks_per_100ms = 0;
+static int motor1_ticks_per_100ms = 0;
+
 DEBUG_INSTANCE(80, Serial);
 
 ArduinoMCP2515 mcp2515([]() { digitalWrite(MCP2515_CS_PIN, LOW); },
@@ -122,6 +127,7 @@ cyphal::Publisher<uavcan::primitive::scalar::Integer32_1_0> encoder1_pub;
 
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
+cyphal::Subscription motor_0_rpm_subscription, motor_1_rpm_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
 
@@ -186,6 +192,8 @@ static CanardPortID port_id_output0              = std::numeric_limits<CanardPor
 static CanardPortID port_id_output1              = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_motor0               = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_motor1               = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor0_rpm           = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_motor1_rpm           = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input0        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input1        = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_analog_input2        = std::numeric_limits<CanardPortID>::max();
@@ -269,6 +277,10 @@ const auto reg_rw_cyphal_sub_motor0_id                      = node_registry->exp
 const auto reg_ro_cyphal_sub_motor0_type                    = node_registry->route ("cyphal.sub.motor0.type",                   {true}, []() { return "uavcan.primitive.scalar.Integer16.1.0"; });
 const auto reg_rw_cyphal_sub_motor1_id                      = node_registry->expose("cyphal.sub.motor1.id",                     {true}, port_id_motor1);
 const auto reg_ro_cyphal_sub_motor1_type                    = node_registry->route ("cyphal.sub.motor1.type",                   {true}, []() { return "uavcan.primitive.scalar.Integer16.1.0"; });
+const auto reg_rw_cyphal_sub_motor0_rpm_id                  = node_registry->expose("cyphal.sub.motor0rpm.id",                  {true}, port_id_motor0);
+const auto reg_ro_cyphal_sub_motor0_rpm_type                = node_registry->route ("cyphal.sub.motor0rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_sub_motor1_rpm_id                  = node_registry->expose("cyphal.sub.motor1rpm.id",                  {true}, port_id_motor1);
+const auto reg_ro_cyphal_sub_motor1_rpm_type                = node_registry->route ("cyphal.sub.motor1rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_crc07_update_period_ms_internaltemperature = node_registry->expose("crc07.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
 const auto reg_rw_crc07_update_period_ms_input_voltage       = node_registry->expose("crc07.update_period_ms.inputvoltage",        {true}, update_period_ms_input_voltage);
 const auto reg_rw_crc07_update_period_ms_input_current       = node_registry->expose("crc07.update_period_ms.inputcurrent",        {true}, update_period_ms_input_current);
@@ -402,6 +414,26 @@ void setup()
           mot1.pwm(msg.value);
 
         prev_motor1_update=millis();
+      });
+
+  if (port_id_motor0_rpm != std::numeric_limits<CanardPortID>::max())
+    motor_0_rpm_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Real32_1_0>(
+      port_id_motor0_rpm,
+      [](uavcan::primitive::scalar::Real32_1_0 const & msg)
+      {
+        motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
+        motor0_default_pwm = (int)(255.0 * msg.value / 30.0);
+        prev_motor0_update = millis();
+      });
+
+  if (port_id_motor1_rpm != std::numeric_limits<CanardPortID>::max())
+    motor_1_rpm_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Real32_1_0>(
+      port_id_motor1_rpm,
+      [](uavcan::primitive::scalar::Real32_1_0 const & msg)
+      {
+        motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
+        motor1_default_pwm = (int)(255.0 * msg.value / 30.0);
+        prev_motor1_update = millis();
       });
 
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
