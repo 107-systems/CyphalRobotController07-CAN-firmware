@@ -231,8 +231,8 @@ static bool reverse_motor_0                          = false;
 static bool reverse_motor_1                          = false;
 static unsigned long prev_motor0_update              = 0;
 static unsigned long prev_motor1_update              = 0;
-static uint16_t motor0_counts_per_rotation           = 2*11*300;
-static uint16_t motor1_counts_per_rotation           = 2*11*300;
+static uint16_t motor0_counts_per_rotation           = 4*11*506;
+static uint16_t motor1_counts_per_rotation           = 4*11*506;
 
 static std::string node_description{"CyphalRobotController07/CAN"};
 
