@@ -912,8 +912,16 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 bool TimerHandler0(struct repeating_timer *t)
 {
   (void) t;
-  
-  mot0.pwm(motor0_default_pwm);
+
+  static int encoder0_old=0;
+  int encoder0_new=encoder0.getCount();
+  int encoder0_d=encoder0_new-encoder0_old;
+  encoder0_old=encoder0_new;
+  int motor0_abw=motor0_ticks_per_100ms-encoder0_d;
+  int motor0_real_pwm=motor0_default_pwm+(motor0_abw/10);
+
+  DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_d, motor0_abw, motor0_default_pwm, motor0_real_pwm);
+  mot0.pwm(motor0_real_pwm);
   mot1.pwm(motor1_default_pwm);
   return true;
 }
