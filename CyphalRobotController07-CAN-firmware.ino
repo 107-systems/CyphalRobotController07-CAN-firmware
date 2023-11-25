@@ -916,7 +916,11 @@ bool TimerHandler0(struct repeating_timer *t)
   static int encoder0_old=0;
   static int motor0_error_old=0;
   static int motor0_error_sum=0;
+  static int encoder1_old=0;
+  static int motor1_error_old=0;
+  static int motor1_error_sum=0;
 
+/* PID controller for motor 0 */
   int encoder0_new=encoder0.getCount();
   int encoder0_diff=encoder0_new-encoder0_old;
   encoder0_old=encoder0_new;
@@ -927,8 +931,22 @@ bool TimerHandler0(struct repeating_timer *t)
 //  int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10)+(motor0_error-motor0_error_old);
   motor0_error_old=motor0_error;
 
-  DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+//  DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+
+/* PID controller for motor 1 */
+  int encoder1_new=encoder1.getCount();
+  int encoder1_diff=encoder1_new-encoder1_old;
+  encoder1_old=encoder1_new;
+
+  int motor1_error=motor1_ticks_per_100ms-encoder1_diff;
+  motor1_error_sum=motor1_error_sum + motor1_error;
+  int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10);
+//  int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10)+(motor1_error-motor1_error_old);
+  motor1_error_old=motor1_error;
+
+//  DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
+
   mot0.pwm(motor0_real_pwm);
-  mot1.pwm(motor1_default_pwm);
+  mot1.pwm(motor1_real_pwm);
   return true;
 }
