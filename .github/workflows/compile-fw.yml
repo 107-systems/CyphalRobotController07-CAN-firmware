@@ -55,6 +55,7 @@ jobs:
             - source-url: https://github.com/wollewald/INA226_WE.git
             - source-url: https://github.com/wollewald/ADS1115_WE.git
             - source-url: https://github.com/gbr1/rp2040-encoder-library.git
+            - source-url: https://github.com/khoih-prog/RPI_PICO_TimerInterrupt.git
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: ./
 
