@@ -1,4 +1,4 @@
-/**
+/*
  * Default firmware for the CyphalPicoBase-CAN (https://github.com/generationmake/CyphalPicoBase-CAN)
  *
  * This software is distributed under the terms of the MIT License.
@@ -24,6 +24,7 @@
 #include <ADS1115_WE.h>
 #include "ifx007t.h"
 #include "pio_encoder.h"
+#include "RPi_Pico_TimerInterrupt.h"
 
 
 #define DBG_ENABLE_ERROR
@@ -70,12 +71,15 @@ static uint16_t const UPDATE_PERIOD_HEARTBEAT_ms = 1000;
 
 static uint32_t const WATCHDOG_DELAY_ms = 1000;
 
+#define TIMER0_INTERVAL_MS 100
+
 /**************************************************************************************
  * FUNCTION DECLARATION
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const & frame);
 ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const &);
+bool TimerHandler0(struct repeating_timer *t);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -87,6 +91,7 @@ PioEncoder encoder0(ENCODER0_A);
 PioEncoder encoder1(ENCODER1_A);
 INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
+RPI_PICO_Timer ITimer0(0);
 
 static int motor0_default_pwm = 0;
 static int motor1_default_pwm = 0;
@@ -529,6 +534,15 @@ void setup()
   encoder0.begin();
   encoder1.begin();
 
+  // Interval in microsecs
+  if (ITimer0.attachInterruptInterval(TIMER0_INTERVAL_MS * 1000, TimerHandler0))
+  {
+    DBG_INFO("Starting ITimer0 OK");
+  }
+  else
+    DBG_ERROR("Can't set ITimer0. Select another Timer, freq. or timer");
+
+
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
   ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
@@ -893,4 +907,13 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
   }
 
   return rsp;
+}
+
+bool TimerHandler0(struct repeating_timer *t)
+{
+  (void) t;
+  
+  mot0.pwm(motor0_default_pwm);
+  mot1.pwm(motor1_default_pwm);
+  return true;
 }
