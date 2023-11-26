@@ -937,27 +937,27 @@ bool TimerHandler0(struct repeating_timer *t)
 {
   (void) t;
 
-  static int encoder0_old=0;
-  static int motor0_error_old=0;
-  static int motor0_error_sum=0;
-  static int encoder1_old=0;
-  static int motor1_error_old=0;
-  static int motor1_error_sum=0;
+  static int encoder0_old     = 0;
+  static int motor0_error_old = 0;
+  static int motor0_error_sum = 0;
+  static int encoder1_old     = 0;
+  static int motor1_error_old = 0;
+  static int motor1_error_sum = 0;
 
 /* PID controller for motor 0 */
-  int encoder0_new=encoder0.getCount();
-  int encoder0_diff=encoder0_new-encoder0_old;
-  encoder0_old=encoder0_new;
+  int encoder0_new = encoder0.getCount();
+  int encoder0_diff = encoder0_new - encoder0_old;
+  encoder0_old = encoder0_new;
 
   if ( motor0_enabled_flag == 1 ) 
   {
-    int motor0_error=motor0_ticks_per_100ms-encoder0_diff;
-    motor0_error_sum=motor0_error_sum + motor0_error;
-    int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10);
-//    int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10)+(motor0_error-motor0_error_old);
-    motor0_error_old=motor0_error;
-    if ( motor0_real_pwm > 255 ) motor0_error_sum=motor0_error_sum - motor0_error;
-    if ( motor0_real_pwm < -255 ) motor0_error_sum=motor0_error_sum - motor0_error;
+    int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
+    motor0_error_sum = motor0_error_sum + motor0_error;
+    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 );
+//    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
+    motor0_error_old = motor0_error;
+    if ( motor0_real_pwm > 255 ) motor0_error_sum = motor0_error_sum - motor0_error;
+    if ( motor0_real_pwm < -255 ) motor0_error_sum = motor0_error_sum - motor0_error;
 
     mot0.pwm(motor0_real_pwm);
 
@@ -965,19 +965,19 @@ bool TimerHandler0(struct repeating_timer *t)
   }
 
 /* PID controller for motor 1 */
-  int encoder1_new=encoder1.getCount();
-  int encoder1_diff=encoder1_new-encoder1_old;
-  encoder1_old=encoder1_new;
+  int encoder1_new = encoder1.getCount();
+  int encoder1_diff = encoder1_new - encoder1_old;
+  encoder1_old = encoder1_new;
 
   if ( motor1_enabled_flag == 1 ) 
   {
-    int motor1_error=motor1_ticks_per_100ms-encoder1_diff;
-    motor1_error_sum=motor1_error_sum + motor1_error;
-    int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10);
-//    int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10)+(motor1_error-motor1_error_old);
-    motor1_error_old=motor1_error;
-    if ( motor1_real_pwm > 255 ) motor1_error_sum=motor1_error_sum - motor1_error;
-    if ( motor1_real_pwm < -255 ) motor1_error_sum=motor1_error_sum - motor1_error;
+    int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
+    motor1_error_sum = motor1_error_sum + motor1_error;
+    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 );
+//    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
+    motor1_error_old = motor1_error;
+    if ( motor1_real_pwm > 255 ) motor1_error_sum = motor1_error_sum - motor1_error;
+    if ( motor1_real_pwm < -255 ) motor1_error_sum = motor1_error_sum - motor1_error;
 
     mot1.pwm(motor1_real_pwm);
 
