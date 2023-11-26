@@ -34,6 +34,8 @@
 //#define DBG_ENABLE_VERBOSE
 #include <107-Arduino-Debug.hpp>
 
+#include "src/NeoPixelControl.h"
+
 /**************************************************************************************
  * NAMESPACE
  **************************************************************************************/
@@ -59,11 +61,14 @@ static int const MOTOR1_2           = 6;
 static int const MOTOR1_EN          = 10;
 static int const MOTOR0_EN          = 11;
 static int const EM_STOP_PIN        = 12;
+static int const NEOPIXEL_PIN       = 13;
 static int const OUTPUT_0_PIN       = 21; /* GP21 */
 static int const OUTPUT_1_PIN       = 22; /* GP22 */
 static int const ANALOG_INPUT_0_PIN = 26;
 static int const ANALOG_INPUT_1_PIN = 27;
 static int const ANALOG_INPUT_2_PIN = 28;
+
+static int const NEOPIXEL_NUM_PIXELS = 8; /* Popular NeoPixel ring size */
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -137,6 +142,8 @@ cyphal::Subscription motor_0_subscription, motor_1_subscription;
 cyphal::Subscription motor_0_rpm_subscription, motor_1_rpm_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
+
+NeoPixelControl neo_pixel_ctrl(NEOPIXEL_PIN, NEOPIXEL_NUM_PIXELS);
 
 /* LITTLEFS/EEPROM ********************************************************************/
 
@@ -563,6 +570,15 @@ void setup()
   }
   else
     DBG_ERROR("Can't set ITimer0. Select another Timer, freq. or timer");
+
+  /* enable neopixels */
+  neo_pixel_ctrl.begin();
+
+  neo_pixel_ctrl.light_red();
+  delay(100);
+  neo_pixel_ctrl.light_amber();
+  delay(100);
+  neo_pixel_ctrl.light_green();
 
 
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
