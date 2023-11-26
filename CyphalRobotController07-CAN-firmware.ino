@@ -949,7 +949,7 @@ bool TimerHandler0(struct repeating_timer *t)
   int encoder0_diff = encoder0_new - encoder0_old;
   encoder0_old = encoder0_new;
 
-  if ( motor0_enabled_flag == 1 ) 
+  if ( motor0_enabled_flag == 1 )
   {
     int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
     motor0_error_sum = motor0_error_sum + motor0_error;
@@ -969,7 +969,7 @@ bool TimerHandler0(struct repeating_timer *t)
   int encoder1_diff = encoder1_new - encoder1_old;
   encoder1_old = encoder1_new;
 
-  if ( motor1_enabled_flag == 1 ) 
+  if ( motor1_enabled_flag == 1 )
   {
     int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
     motor1_error_sum = motor1_error_sum + motor1_error;
