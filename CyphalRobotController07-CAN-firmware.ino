@@ -97,6 +97,8 @@ static int motor0_default_pwm = 0;
 static int motor1_default_pwm = 0;
 static int motor0_ticks_per_100ms = 0;
 static int motor1_ticks_per_100ms = 0;
+static bool motor0_enabled_flag = 0;
+static bool motor1_enabled_flag = 0;
 
 DEBUG_INSTANCE(80, Serial);
 
@@ -406,6 +408,7 @@ void setup()
           mot0.pwm(msg.value);
 
         prev_motor0_update = millis();
+        motor0_enabled_flag = 1;
       });
 
   if (port_id_motor1 != std::numeric_limits<CanardPortID>::max())
@@ -419,6 +422,7 @@ void setup()
           mot1.pwm(msg.value);
 
         prev_motor1_update=millis();
+        motor0_enabled_flag = 1;
       });
 
   if (port_id_motor0_rpm != std::numeric_limits<CanardPortID>::max())
@@ -429,6 +433,7 @@ void setup()
         motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
         motor0_default_pwm = (int)(255.0 * msg.value / 30.0);
         prev_motor0_update = millis();
+        motor0_enabled_flag = 1;
       });
 
   if (port_id_motor1_rpm != std::numeric_limits<CanardPortID>::max())
@@ -439,6 +444,7 @@ void setup()
         motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
         motor1_default_pwm = (int)(255.0 * msg.value / 30.0);
         prev_motor1_update = millis();
+        motor0_enabled_flag = 1;
       });
 
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
@@ -656,6 +662,7 @@ void loop()
   {
     if((now - prev_motor0_update) > timeout_ms_motor0)
     {
+      motor0_enabled_flag = 0;
       mot0.pwm(0);
     }
   }
@@ -663,6 +670,7 @@ void loop()
   {
     if((now - prev_motor1_update) > timeout_ms_motor1)
     {
+      motor1_enabled_flag = 0;
       mot1.pwm(0);
     }
   }
@@ -925,32 +933,40 @@ bool TimerHandler0(struct repeating_timer *t)
   int encoder0_diff=encoder0_new-encoder0_old;
   encoder0_old=encoder0_new;
 
-  int motor0_error=motor0_ticks_per_100ms-encoder0_diff;
-  motor0_error_sum=motor0_error_sum + motor0_error;
-  int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10);
-//  int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10)+(motor0_error-motor0_error_old);
-  motor0_error_old=motor0_error;
-  if ( motor0_real_pwm > 255 ) motor0_error_sum=motor0_error_sum - motor0_error;
-  if ( motor0_real_pwm < -255 ) motor0_error_sum=motor0_error_sum - motor0_error;
+  if ( motor0_enabled_flag == 1 ) 
+  {
+    int motor0_error=motor0_ticks_per_100ms-encoder0_diff;
+    motor0_error_sum=motor0_error_sum + motor0_error;
+    int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10);
+//    int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10)+(motor0_error-motor0_error_old);
+    motor0_error_old=motor0_error;
+    if ( motor0_real_pwm > 255 ) motor0_error_sum=motor0_error_sum - motor0_error;
+    if ( motor0_real_pwm < -255 ) motor0_error_sum=motor0_error_sum - motor0_error;
 
-//  DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+    mot0.pwm(motor0_real_pwm);
+
+//    DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+  }
 
 /* PID controller for motor 1 */
   int encoder1_new=encoder1.getCount();
   int encoder1_diff=encoder1_new-encoder1_old;
   encoder1_old=encoder1_new;
 
-  int motor1_error=motor1_ticks_per_100ms-encoder1_diff;
-  motor1_error_sum=motor1_error_sum + motor1_error;
-  int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10);
-//  int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10)+(motor1_error-motor1_error_old);
-  motor1_error_old=motor1_error;
-  if ( motor1_real_pwm > 255 ) motor1_error_sum=motor1_error_sum - motor1_error;
-  if ( motor1_real_pwm < -255 ) motor1_error_sum=motor1_error_sum - motor1_error;
+  if ( motor1_enabled_flag == 1 ) 
+  {
+    int motor1_error=motor1_ticks_per_100ms-encoder1_diff;
+    motor1_error_sum=motor1_error_sum + motor1_error;
+    int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10);
+//    int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10)+(motor1_error-motor1_error_old);
+    motor1_error_old=motor1_error;
+    if ( motor1_real_pwm > 255 ) motor1_error_sum=motor1_error_sum - motor1_error;
+    if ( motor1_real_pwm < -255 ) motor1_error_sum=motor1_error_sum - motor1_error;
 
-//  DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
+    mot1.pwm(motor1_real_pwm);
 
-  mot0.pwm(motor0_real_pwm);
-  mot1.pwm(motor1_real_pwm);
+//    DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
+  }
+
   return true;
 }
