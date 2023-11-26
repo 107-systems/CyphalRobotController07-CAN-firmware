@@ -930,6 +930,8 @@ bool TimerHandler0(struct repeating_timer *t)
   int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10);
 //  int motor0_real_pwm=motor0_default_pwm+(motor0_error/10)+(motor0_error_sum/10)+(motor0_error-motor0_error_old);
   motor0_error_old=motor0_error;
+  if ( motor0_real_pwm > 255 ) motor0_error_sum=motor0_error_sum - motor0_error;
+  if ( motor0_real_pwm < -255 ) motor0_error_sum=motor0_error_sum - motor0_error;
 
 //  DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
 
@@ -943,6 +945,8 @@ bool TimerHandler0(struct repeating_timer *t)
   int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10);
 //  int motor1_real_pwm=motor1_default_pwm+(motor1_error/10)+(motor1_error_sum/10)+(motor1_error-motor1_error_old);
   motor1_error_old=motor1_error;
+  if ( motor1_real_pwm > 255 ) motor1_error_sum=motor1_error_sum - motor1_error;
+  if ( motor1_real_pwm < -255 ) motor1_error_sum=motor1_error_sum - motor1_error;
 
 //  DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
 
