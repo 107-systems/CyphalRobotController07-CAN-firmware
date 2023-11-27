@@ -92,8 +92,8 @@ bool TimerHandler0(struct repeating_timer *t);
 
 Ifx007t mot0;
 Ifx007t mot1;
-PioEncoder encoder0(ENCODER0_A);
-PioEncoder encoder1(ENCODER1_A);
+PioEncoder encoder0(ENCODER0_A, pio1);
+PioEncoder encoder1(ENCODER1_A, pio1);
 INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 RPI_PICO_Timer ITimer0(0);
