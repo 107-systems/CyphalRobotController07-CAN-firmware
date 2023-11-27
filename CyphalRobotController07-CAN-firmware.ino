@@ -140,6 +140,7 @@ cyphal::Publisher<uavcan::primitive::scalar::Integer32_1_0> encoder1_pub;
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
 cyphal::Subscription motor_0_rpm_subscription, motor_1_rpm_subscription;
+cyphal::Subscription light_mode_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
 
@@ -217,6 +218,7 @@ static CanardPortID port_id_motor0_bemf          = std::numeric_limits<CanardPor
 static CanardPortID port_id_motor1_bemf          = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_encoder0             = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_encoder1             = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_light_mode           = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_input_voltage       =  1*1000;
@@ -295,6 +297,8 @@ const auto reg_rw_cyphal_sub_motor0_rpm_id                  = node_registry->exp
 const auto reg_ro_cyphal_sub_motor0_rpm_type                = node_registry->route ("cyphal.sub.motor0rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_sub_motor1_rpm_id                  = node_registry->expose("cyphal.sub.motor1rpm.id",                  {true}, port_id_motor1_rpm);
 const auto reg_ro_cyphal_sub_motor1_rpm_type                = node_registry->route ("cyphal.sub.motor1rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_sub_lightmode_id                   = node_registry->expose("cyphal.sub.lightmode.id",                  {true}, port_id_light_mode);
+const auto reg_ro_cyphal_sub_lightmode_type                 = node_registry->route ("cyphal.sub.lightmode.type",                {true}, []() { return "uavcan.primitive.scalar.Integer8.1.0"; });
 const auto reg_rw_crc07_update_period_ms_internaltemperature = node_registry->expose("crc07.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
 const auto reg_rw_crc07_update_period_ms_input_voltage       = node_registry->expose("crc07.update_period_ms.inputvoltage",        {true}, update_period_ms_input_voltage);
 const auto reg_rw_crc07_update_period_ms_input_current       = node_registry->expose("crc07.update_period_ms.inputcurrent",        {true}, update_period_ms_input_current);
@@ -468,6 +472,19 @@ void setup()
         }
         prev_motor1_update = millis();
         motor0_enabled_flag = 1;
+      });
+
+  if (port_id_light_mode != std::numeric_limits<CanardPortID>::max())
+    light_mode_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Integer8_1_0>(
+      port_id_light_mode,
+      [](uavcan::primitive::scalar::Integer8_1_0 const & msg)
+      {
+        if(msg.value == 1) neo_pixel_ctrl.light_red();
+        else if(msg.value == 2) neo_pixel_ctrl.light_green();
+        else if(msg.value == 3) neo_pixel_ctrl.light_blue();
+        else if(msg.value == 4) neo_pixel_ctrl.light_white();
+        else if(msg.value == 5) neo_pixel_ctrl.light_amber();
+        else neo_pixel_ctrl.light_off();
       });
 
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
