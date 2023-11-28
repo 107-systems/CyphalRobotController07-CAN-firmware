@@ -34,6 +34,8 @@
 //#define DBG_ENABLE_VERBOSE
 #include <107-Arduino-Debug.hpp>
 
+#include "src/NeoPixelControl.h"
+
 /**************************************************************************************
  * NAMESPACE
  **************************************************************************************/
@@ -59,11 +61,14 @@ static int const MOTOR1_2           = 6;
 static int const MOTOR1_EN          = 10;
 static int const MOTOR0_EN          = 11;
 static int const EM_STOP_PIN        = 12;
+static int const NEOPIXEL_PIN       = 13;
 static int const OUTPUT_0_PIN       = 21; /* GP21 */
 static int const OUTPUT_1_PIN       = 22; /* GP22 */
 static int const ANALOG_INPUT_0_PIN = 26;
 static int const ANALOG_INPUT_1_PIN = 27;
 static int const ANALOG_INPUT_2_PIN = 28;
+
+static int const NEOPIXEL_NUM_PIXELS = 12; /* Popular NeoPixel ring size */
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -87,8 +92,8 @@ bool TimerHandler0(struct repeating_timer *t);
 
 Ifx007t mot0;
 Ifx007t mot1;
-PioEncoder encoder0(ENCODER0_A);
-PioEncoder encoder1(ENCODER1_A);
+PioEncoder encoder0(ENCODER0_A, pio1);
+PioEncoder encoder1(ENCODER1_A, pio1);
 INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 RPI_PICO_Timer ITimer0(0);
@@ -135,8 +140,11 @@ cyphal::Publisher<uavcan::primitive::scalar::Integer32_1_0> encoder1_pub;
 cyphal::Subscription output_0_subscription, output_1_subscription;
 cyphal::Subscription motor_0_subscription, motor_1_subscription;
 cyphal::Subscription motor_0_rpm_subscription, motor_1_rpm_subscription;
+cyphal::Subscription light_mode_subscription;
 
 cyphal::ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
+
+NeoPixelControl neo_pixel_ctrl(NEOPIXEL_PIN, NEOPIXEL_NUM_PIXELS);
 
 /* LITTLEFS/EEPROM ********************************************************************/
 
@@ -210,6 +218,7 @@ static CanardPortID port_id_motor0_bemf          = std::numeric_limits<CanardPor
 static CanardPortID port_id_motor1_bemf          = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_encoder0             = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_encoder1             = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_light_mode           = std::numeric_limits<CanardPortID>::max();
 
 static uint16_t update_period_ms_internaltemperature = 10*1000;
 static uint16_t update_period_ms_input_voltage       =  1*1000;
@@ -288,6 +297,8 @@ const auto reg_rw_cyphal_sub_motor0_rpm_id                  = node_registry->exp
 const auto reg_ro_cyphal_sub_motor0_rpm_type                = node_registry->route ("cyphal.sub.motor0rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_sub_motor1_rpm_id                  = node_registry->expose("cyphal.sub.motor1rpm.id",                  {true}, port_id_motor1_rpm);
 const auto reg_ro_cyphal_sub_motor1_rpm_type                = node_registry->route ("cyphal.sub.motor1rpm.type",                {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_sub_lightmode_id                   = node_registry->expose("cyphal.sub.lightmode.id",                  {true}, port_id_light_mode);
+const auto reg_ro_cyphal_sub_lightmode_type                 = node_registry->route ("cyphal.sub.lightmode.type",                {true}, []() { return "uavcan.primitive.scalar.Integer8.1.0"; });
 const auto reg_rw_crc07_update_period_ms_internaltemperature = node_registry->expose("crc07.update_period_ms.internaltemperature", {true}, update_period_ms_internaltemperature);
 const auto reg_rw_crc07_update_period_ms_input_voltage       = node_registry->expose("crc07.update_period_ms.inputvoltage",        {true}, update_period_ms_input_voltage);
 const auto reg_rw_crc07_update_period_ms_input_current       = node_registry->expose("crc07.update_period_ms.inputcurrent",        {true}, update_period_ms_input_current);
@@ -362,19 +373,7 @@ void setup()
     node_id = 0;
   node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
 
-  if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
-    internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_voltage != std::numeric_limits<CanardPortID>::max())
-    input_voltage_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_voltage, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_current != std::numeric_limits<CanardPortID>::max())
-    input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
-    input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
-    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
-  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
-    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
-
+  /* all Cyphal subscription functions */
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
       port_id_output0,
@@ -463,6 +462,32 @@ void setup()
         motor0_enabled_flag = 1;
       });
 
+  if (port_id_light_mode != std::numeric_limits<CanardPortID>::max())
+    light_mode_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Integer8_1_0>(
+      port_id_light_mode,
+      [](uavcan::primitive::scalar::Integer8_1_0 const & msg)
+      {
+        if(msg.value == 1) neo_pixel_ctrl.light_red();
+        else if(msg.value == 2) neo_pixel_ctrl.light_green();
+        else if(msg.value == 3) neo_pixel_ctrl.light_blue();
+        else if(msg.value == 4) neo_pixel_ctrl.light_white();
+        else if(msg.value == 5) neo_pixel_ctrl.light_amber();
+        else neo_pixel_ctrl.light_off();
+      });
+
+  /* all Cyphal publish functions */
+  if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
+    internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_voltage != std::numeric_limits<CanardPortID>::max())
+    input_voltage_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_voltage, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current != std::numeric_limits<CanardPortID>::max())
+    input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
+    input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
+    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
+  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
+    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
     em_stop_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>(port_id_em_stop, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_analog_input0 != std::numeric_limits<CanardPortID>::max())
@@ -564,6 +589,14 @@ void setup()
   else
     DBG_ERROR("Can't set ITimer0. Select another Timer, freq. or timer");
 
+  /* enable neopixels */
+  neo_pixel_ctrl.begin();
+
+  neo_pixel_ctrl.light_red();
+  delay(100);
+  neo_pixel_ctrl.light_amber();
+  delay(100);
+  neo_pixel_ctrl.light_green();
 
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
