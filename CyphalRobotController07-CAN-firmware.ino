@@ -68,7 +68,7 @@ static int const ANALOG_INPUT_0_PIN = 26;
 static int const ANALOG_INPUT_1_PIN = 27;
 static int const ANALOG_INPUT_2_PIN = 28;
 
-static int const NEOPIXEL_NUM_PIXELS = 8; /* Popular NeoPixel ring size */
+static int const NEOPIXEL_NUM_PIXELS = 12; /* Popular NeoPixel ring size */
 
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 
@@ -373,19 +373,7 @@ void setup()
     node_id = 0;
   node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
 
-  if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
-    internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_voltage != std::numeric_limits<CanardPortID>::max())
-    input_voltage_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_voltage, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_current != std::numeric_limits<CanardPortID>::max())
-    input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
-    input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
-  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
-    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
-  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
-    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
-
+  /* all Cyphal suscription functions */
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
       port_id_output0,
@@ -487,6 +475,19 @@ void setup()
         else neo_pixel_ctrl.light_off();
       });
 
+  /* all Cyphal publish functions */
+  if (port_id_internal_temperature != std::numeric_limits<CanardPortID>::max())
+    internal_temperature_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_internal_temperature, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_voltage != std::numeric_limits<CanardPortID>::max())
+    input_voltage_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_voltage, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current != std::numeric_limits<CanardPortID>::max())
+    input_current_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_power != std::numeric_limits<CanardPortID>::max())
+    input_power_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_input_current_total != std::numeric_limits<CanardPortID>::max())
+    input_current_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_current_total, 5*1000*1000UL /* = 5 sec in usecs. */);
+  if (port_id_input_power_total != std::numeric_limits<CanardPortID>::max())
+    input_power_total_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Real32_1_0>(port_id_input_power_total, 5*1000*1000UL /* = 5 sec in usecs. */);
   if (port_id_em_stop != std::numeric_limits<CanardPortID>::max())
     em_stop_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>(port_id_em_stop, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_analog_input0 != std::numeric_limits<CanardPortID>::max())
@@ -596,7 +597,6 @@ void setup()
   neo_pixel_ctrl.light_amber();
   delay(100);
   neo_pixel_ctrl.light_green();
-
 
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
