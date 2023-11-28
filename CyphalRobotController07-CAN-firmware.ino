@@ -373,7 +373,7 @@ void setup()
     node_id = 0;
   node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
 
-  /* all Cyphal suscription functions */
+  /* all Cyphal subscription functions */
   if (port_id_output0 != std::numeric_limits<CanardPortID>::max())
     output_0_subscription = node_hdl.create_subscription<uavcan::primitive::scalar::Bit_1_0>(
       port_id_output0,
