@@ -50,10 +50,10 @@ static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MCP2515_CS_PIN     = 17;
 static int const MCP2515_INT_PIN    = 20;
-static int const ENCODER0_A         = 2;
-static int const ENCODER0_B         = 3;
-static int const ENCODER1_A         = 14;
-static int const ENCODER1_B         = 15;
+static int const ENCODER1_A         = 2;
+static int const ENCODER1_B         = 3;
+static int const ENCODER0_A         = 14;
+static int const ENCODER0_B         = 15;
 static int const MOTOR0_1           = 9;
 static int const MOTOR0_2           = 8;
 static int const MOTOR1_1           = 7;
