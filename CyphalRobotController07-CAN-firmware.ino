@@ -432,12 +432,12 @@ void setup()
         if (reverse_motor_0)
         {
           motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
-          motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
+//          motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
         }
         else
         {
           motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
-          motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
+//          motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
         }
         prev_motor0_update = millis();
         motor0_enabled_flag = 1;
@@ -451,12 +451,12 @@ void setup()
         if (reverse_motor_1)
         {
           motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
-          motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
+//          motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
         }
         else
         {
           motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
-          motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
+//          motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
         }
         prev_motor1_update = millis();
         motor1_enabled_flag = 1;
@@ -986,7 +986,7 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
     motor0_error_sum = motor0_error_sum + motor0_error;
-    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 );
+    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 30 );
 //    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
     motor0_error_old = motor0_error;
     if ( motor0_real_pwm > 255 ) motor0_error_sum = motor0_error_sum - motor0_error;
@@ -1006,7 +1006,7 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
     motor1_error_sum = motor1_error_sum + motor1_error;
-    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 );
+    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 30 );
 //    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
     motor1_error_old = motor1_error;
     if ( motor1_real_pwm > 255 ) motor1_error_sum = motor1_error_sum - motor1_error;
