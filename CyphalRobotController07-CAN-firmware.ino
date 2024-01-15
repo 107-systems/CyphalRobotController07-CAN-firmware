@@ -78,6 +78,8 @@ static uint32_t const WATCHDOG_DELAY_ms = 1000;
 
 #define TIMER0_INTERVAL_MS 100
 
+static int const MOTOR_PWM_MAX_DIFF = 40;
+
 /**************************************************************************************
  * FUNCTION DECLARATION
  **************************************************************************************/
@@ -973,9 +975,11 @@ bool TimerHandler0(struct repeating_timer *t)
   static int encoder0_old     = 0;
   static int motor0_error_old = 0;
   static int motor0_error_sum = 0;
+  static int motor0_pwm_old   = 0;
   static int encoder1_old     = 0;
   static int motor1_error_old = 0;
   static int motor1_error_sum = 0;
+  static int motor1_pwm_old   = 0;
 
 /* PID controller for motor 0 */
   int encoder0_new = encoder0.getCount();
@@ -989,10 +993,16 @@ bool TimerHandler0(struct repeating_timer *t)
     int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 30 );
 //    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
     motor0_error_old = motor0_error;
+
+/* limit max PWM change */
+    if (( motor0_real_pwm - motor0_pwm_old ) > MOTOR_PWM_MAX_DIFF )  motor0_real_pwm = motor0_pwm_old + MOTOR_PWM_MAX_DIFF;
+    if (( motor0_real_pwm - motor0_pwm_old ) < -MOTOR_PWM_MAX_DIFF ) motor0_real_pwm = motor0_pwm_old - MOTOR_PWM_MAX_DIFF;
+
     if ( motor0_real_pwm > 255 ) motor0_error_sum = motor0_error_sum - motor0_error;
     if ( motor0_real_pwm < -255 ) motor0_error_sum = motor0_error_sum - motor0_error;
 
     mot0.pwm(motor0_real_pwm);
+    motor0_pwm_old=motor0_real_pwm;
 
 //    DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
   }
@@ -1009,10 +1019,16 @@ bool TimerHandler0(struct repeating_timer *t)
     int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 30 );
 //    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
     motor1_error_old = motor1_error;
+
+/* limit max PWM change */
+    if (( motor1_real_pwm - motor1_pwm_old ) > MOTOR_PWM_MAX_DIFF )  motor1_real_pwm = motor1_pwm_old + MOTOR_PWM_MAX_DIFF;
+    if (( motor1_real_pwm - motor1_pwm_old ) < -MOTOR_PWM_MAX_DIFF ) motor1_real_pwm = motor1_pwm_old - MOTOR_PWM_MAX_DIFF;
+
     if ( motor1_real_pwm > 255 ) motor1_error_sum = motor1_error_sum - motor1_error;
     if ( motor1_real_pwm < -255 ) motor1_error_sum = motor1_error_sum - motor1_error;
 
     mot1.pwm(motor1_real_pwm);
+    motor1_pwm_old=motor1_real_pwm;
 
 //    DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
   }
