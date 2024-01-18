@@ -431,18 +431,26 @@ void setup()
       port_id_motor0_rpm,
       [](uavcan::primitive::scalar::Real32_1_0 const & msg)
       {
-        if (reverse_motor_0)
+        if(msg.value == 0) /* stop motor immediately if value is 0 */
         {
-          motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
-//          motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          motor0_enabled_flag = 0;
+          mot0.pwm(0);
         }
         else
         {
-          motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
-//          motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
+          if (reverse_motor_0)
+          {
+            motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
+//            motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          }
+          else
+          {
+            motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
+//            motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
+          }
+          prev_motor0_update = millis();
+          motor0_enabled_flag = 1;
         }
-        prev_motor0_update = millis();
-        motor0_enabled_flag = 1;
       });
 
   if (port_id_motor1_rpm != std::numeric_limits<CanardPortID>::max())
@@ -450,18 +458,26 @@ void setup()
       port_id_motor1_rpm,
       [](uavcan::primitive::scalar::Real32_1_0 const & msg)
       {
-        if (reverse_motor_1)
+        if(msg.value == 0) /* stop motor immediately if value is 0 */
         {
-          motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
-//          motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          motor1_enabled_flag = 0;
+          mot1.pwm(0);
         }
         else
         {
-          motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
-//          motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
+          if (reverse_motor_1)
+          {
+            motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
+//            motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          }
+          else
+          {
+            motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
+//            motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
+          }
+          prev_motor1_update = millis();
+          motor1_enabled_flag = 1;
         }
-        prev_motor1_update = millis();
-        motor1_enabled_flag = 1;
       });
 
   if (port_id_light_mode != std::numeric_limits<CanardPortID>::max())
