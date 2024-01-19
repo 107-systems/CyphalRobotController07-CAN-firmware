@@ -1,10 +1,10 @@
 /*
- * Default firmware for the CyphalPicoBase-CAN (https://github.com/generationmake/CyphalPicoBase-CAN)
+ * Default firmware for the CyphalRobotController07-CAN (https://github.com/generationmake/CyphalRobotController07-CAN)
  *
  * This software is distributed under the terms of the MIT License.
- * Copyright (c) 2023 LXRobotics.
- * Author: Alexander Entinger <alexander.entinger@lxrobotics.com>
- * Contributors: https://github.com/107-systems/CyphalPicoBase-CAN-firmware/graphs/contributors.
+ * Copyright (c) 2024 LXRobotics.
+ * Author: Bernhard Mayer <alexander.entinger@lxrobotics.com>
+ * Contributors: https://github.com/107-systems/CyphalRobotController07-CAN-firmware/graphs/contributors.
  */
 
 /**************************************************************************************
