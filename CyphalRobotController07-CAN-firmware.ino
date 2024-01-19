@@ -683,6 +683,15 @@ void loop()
 
   unsigned long const now = millis();
 
+  /* disable motors if emergency stop is pressed */
+  if(digitalRead(EM_STOP_PIN) == 0)
+  {
+    motor0_enabled_flag = 0;
+    mot0.pwm(0);
+    motor1_enabled_flag = 0;
+    mot1.pwm(0);
+  }
+
   /* get ADS1115 data ever 100 ms */
   if((now - prev_ads1115) > 100)
   {
