@@ -100,8 +100,6 @@ INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 RPI_PICO_Timer ITimer0(0);
 
-static int motor0_default_pwm = 0;
-static int motor1_default_pwm = 0;
 static int motor0_ticks_per_100ms = 0;
 static int motor1_ticks_per_100ms = 0;
 static bool motor0_enabled_flag = 0;
@@ -441,12 +439,10 @@ void setup()
           if (reverse_motor_0)
           {
             motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
-//            motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
           }
           else
           {
             motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
-//            motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
           }
           prev_motor0_update = millis();
           motor0_enabled_flag = 1;
@@ -468,12 +464,10 @@ void setup()
           if (reverse_motor_1)
           {
             motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
-//            motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
           }
           else
           {
             motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
-//            motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
           }
           prev_motor1_update = millis();
           motor1_enabled_flag = 1;
@@ -1015,8 +1009,8 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
     motor0_error_sum = motor0_error_sum + motor0_error;
-    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 30 );
-//    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
+    int motor0_real_pwm = ( motor0_error / 10 ) + ( motor0_error_sum / 30 );
+//    int motor0_real_pwm = ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
     motor0_error_old = motor0_error;
 
 /* limit max PWM change */
@@ -1029,7 +1023,7 @@ bool TimerHandler0(struct repeating_timer *t)
     mot0.pwm(motor0_real_pwm);
     motor0_pwm_old=motor0_real_pwm;
 
-//    DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+//    DBG_INFO("M0 %d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_real_pwm);
   }
   else
   {
@@ -1047,8 +1041,8 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
     motor1_error_sum = motor1_error_sum + motor1_error;
-    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 30 );
-//    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
+    int motor1_real_pwm = ( motor1_error / 10 ) + ( motor1_error_sum / 30 );
+//    int motor1_real_pwm = ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
     motor1_error_old = motor1_error;
 
 /* limit max PWM change */
@@ -1061,7 +1055,7 @@ bool TimerHandler0(struct repeating_timer *t)
     mot1.pwm(motor1_real_pwm);
     motor1_pwm_old=motor1_real_pwm;
 
-//    DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
+//    DBG_INFO("M1 %d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_real_pwm);
   }
   else
   {
