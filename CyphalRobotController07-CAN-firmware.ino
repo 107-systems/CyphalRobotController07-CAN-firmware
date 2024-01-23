@@ -1,10 +1,10 @@
 /*
- * Default firmware for the CyphalPicoBase-CAN (https://github.com/generationmake/CyphalPicoBase-CAN)
+ * Default firmware for the CyphalRobotController07-CAN (https://github.com/generationmake/CyphalRobotController07-CAN)
  *
  * This software is distributed under the terms of the MIT License.
- * Copyright (c) 2023 LXRobotics.
- * Author: Alexander Entinger <alexander.entinger@lxrobotics.com>
- * Contributors: https://github.com/107-systems/CyphalPicoBase-CAN-firmware/graphs/contributors.
+ * Copyright (c) 2024 LXRobotics.
+ * Author: Bernhard Mayer <alexander.entinger@lxrobotics.com>
+ * Contributors: https://github.com/107-systems/CyphalRobotController07-CAN-firmware/graphs/contributors.
  */
 
 /**************************************************************************************
@@ -50,10 +50,10 @@ static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MCP2515_CS_PIN     = 17;
 static int const MCP2515_INT_PIN    = 20;
-static int const ENCODER0_A         = 2;
-static int const ENCODER0_B         = 3;
-static int const ENCODER1_A         = 14;
-static int const ENCODER1_B         = 15;
+static int const ENCODER1_A         = 2;
+static int const ENCODER1_B         = 3;
+static int const ENCODER0_A         = 14;
+static int const ENCODER0_B         = 15;
 static int const MOTOR0_1           = 9;
 static int const MOTOR0_2           = 8;
 static int const MOTOR1_1           = 7;
@@ -78,6 +78,8 @@ static uint32_t const WATCHDOG_DELAY_ms = 1000;
 
 #define TIMER0_INTERVAL_MS 100
 
+static int const MOTOR_PWM_MAX_DIFF = 40;
+
 /**************************************************************************************
  * FUNCTION DECLARATION
  **************************************************************************************/
@@ -98,8 +100,6 @@ INA226_WE ina226 = INA226_WE();
 ADS1115_WE ads1115 = ADS1115_WE();
 RPI_PICO_Timer ITimer0(0);
 
-static int motor0_default_pwm = 0;
-static int motor1_default_pwm = 0;
 static int motor0_ticks_per_100ms = 0;
 static int motor1_ticks_per_100ms = 0;
 static bool motor0_enabled_flag = 0;
@@ -429,18 +429,24 @@ void setup()
       port_id_motor0_rpm,
       [](uavcan::primitive::scalar::Real32_1_0 const & msg)
       {
-        if (reverse_motor_0)
+        if(msg.value == 0) /* stop motor immediately if value is 0 */
         {
-          motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
-          motor0_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          motor0_enabled_flag = 0;
+          mot0.pwm(0);
         }
         else
         {
-          motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
-          motor0_default_pwm = (int)(255.0 * msg.value / 150.0);
+          if (reverse_motor_0)
+          {
+            motor0_ticks_per_100ms = (int)(-1.0 * msg.value * motor0_counts_per_rotation / (float)600.0);
+          }
+          else
+          {
+            motor0_ticks_per_100ms = (int)(msg.value * motor0_counts_per_rotation / (float)600.0);
+          }
+          prev_motor0_update = millis();
+          motor0_enabled_flag = 1;
         }
-        prev_motor0_update = millis();
-        motor0_enabled_flag = 1;
       });
 
   if (port_id_motor1_rpm != std::numeric_limits<CanardPortID>::max())
@@ -448,18 +454,24 @@ void setup()
       port_id_motor1_rpm,
       [](uavcan::primitive::scalar::Real32_1_0 const & msg)
       {
-        if (reverse_motor_1)
+        if(msg.value == 0) /* stop motor immediately if value is 0 */
         {
-          motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
-          motor1_default_pwm = (int)(-255.0 * msg.value / 150.0);
+          motor1_enabled_flag = 0;
+          mot1.pwm(0);
         }
         else
         {
-          motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
-          motor1_default_pwm = (int)(255.0 * msg.value / 150.0);
+          if (reverse_motor_1)
+          {
+            motor1_ticks_per_100ms = (int)(-1.0 * msg.value * motor1_counts_per_rotation / (float)600.0);
+          }
+          else
+          {
+            motor1_ticks_per_100ms = (int)(msg.value * motor1_counts_per_rotation / (float)600.0);
+          }
+          prev_motor1_update = millis();
+          motor1_enabled_flag = 1;
         }
-        prev_motor1_update = millis();
-        motor1_enabled_flag = 1;
       });
 
   if (port_id_light_mode != std::numeric_limits<CanardPortID>::max())
@@ -664,6 +676,15 @@ void loop()
   static int ads1115_data3 = 0;
 
   unsigned long const now = millis();
+
+  /* disable motors if emergency stop is pressed */
+  if(digitalRead(EM_STOP_PIN) == 0)
+  {
+    motor0_enabled_flag = 0;
+    mot0.pwm(0);
+    motor1_enabled_flag = 0;
+    mot1.pwm(0);
+  }
 
   /* get ADS1115 data ever 100 ms */
   if((now - prev_ads1115) > 100)
@@ -973,9 +994,11 @@ bool TimerHandler0(struct repeating_timer *t)
   static int encoder0_old     = 0;
   static int motor0_error_old = 0;
   static int motor0_error_sum = 0;
+  static int motor0_pwm_old   = 0;
   static int encoder1_old     = 0;
   static int motor1_error_old = 0;
   static int motor1_error_sum = 0;
+  static int motor1_pwm_old   = 0;
 
 /* PID controller for motor 0 */
   int encoder0_new = encoder0.getCount();
@@ -986,15 +1009,27 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
     motor0_error_sum = motor0_error_sum + motor0_error;
-    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 );
-//    int motor0_real_pwm = motor0_default_pwm + ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
+    int motor0_real_pwm = ( motor0_error / 10 ) + ( motor0_error_sum / 30 );
+//    int motor0_real_pwm = ( motor0_error / 10 ) + ( motor0_error_sum / 10 ) + ( motor0_error - motor0_error_old );
     motor0_error_old = motor0_error;
+
+/* limit max PWM change */
+    if (( motor0_real_pwm - motor0_pwm_old ) > MOTOR_PWM_MAX_DIFF )  motor0_real_pwm = motor0_pwm_old + MOTOR_PWM_MAX_DIFF;
+    if (( motor0_real_pwm - motor0_pwm_old ) < -MOTOR_PWM_MAX_DIFF ) motor0_real_pwm = motor0_pwm_old - MOTOR_PWM_MAX_DIFF;
+
     if ( motor0_real_pwm > 255 ) motor0_error_sum = motor0_error_sum - motor0_error;
     if ( motor0_real_pwm < -255 ) motor0_error_sum = motor0_error_sum - motor0_error;
 
     mot0.pwm(motor0_real_pwm);
+    motor0_pwm_old=motor0_real_pwm;
 
-//    DBG_INFO("M0 %d|%d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_default_pwm, motor0_real_pwm);
+//    DBG_INFO("M0 %d|%d|%d|%d", motor0_ticks_per_100ms, encoder0_diff, motor0_error, motor0_real_pwm);
+  }
+  else
+  {
+    motor0_error_old = 0;
+    motor0_error_sum = 0;
+    motor0_pwm_old   = 0;
   }
 
 /* PID controller for motor 1 */
@@ -1006,15 +1041,27 @@ bool TimerHandler0(struct repeating_timer *t)
   {
     int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
     motor1_error_sum = motor1_error_sum + motor1_error;
-    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 );
-//    int motor1_real_pwm = motor1_default_pwm + ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
+    int motor1_real_pwm = ( motor1_error / 10 ) + ( motor1_error_sum / 30 );
+//    int motor1_real_pwm = ( motor1_error / 10 ) + ( motor1_error_sum / 10 ) + ( motor1_error - motor1_error_old );
     motor1_error_old = motor1_error;
+
+/* limit max PWM change */
+    if (( motor1_real_pwm - motor1_pwm_old ) > MOTOR_PWM_MAX_DIFF )  motor1_real_pwm = motor1_pwm_old + MOTOR_PWM_MAX_DIFF;
+    if (( motor1_real_pwm - motor1_pwm_old ) < -MOTOR_PWM_MAX_DIFF ) motor1_real_pwm = motor1_pwm_old - MOTOR_PWM_MAX_DIFF;
+
     if ( motor1_real_pwm > 255 ) motor1_error_sum = motor1_error_sum - motor1_error;
     if ( motor1_real_pwm < -255 ) motor1_error_sum = motor1_error_sum - motor1_error;
 
     mot1.pwm(motor1_real_pwm);
+    motor1_pwm_old=motor1_real_pwm;
 
-//    DBG_INFO("M1 %d|%d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_default_pwm, motor1_real_pwm);
+//    DBG_INFO("M1 %d|%d|%d|%d", motor1_ticks_per_100ms, encoder1_diff, motor1_error, motor1_real_pwm);
+  }
+  else
+  {
+    motor1_error_old = 0;
+    motor1_error_sum = 0;
+    motor1_pwm_old   = 0;
   }
 
   return true;
