@@ -26,7 +26,8 @@
 #include "pio_encoder.h"
 #include "RPi_Pico_TimerInterrupt.h"
 
-
+//#define CTRL_INA226
+//#define CTRL_ADS115
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
 #define DBG_ENABLE_INFO
@@ -96,8 +97,12 @@ Ifx007t mot0;
 Ifx007t mot1;
 PioEncoder encoder0(ENCODER0_A, pio1);
 PioEncoder encoder1(ENCODER1_A, pio1);
+#ifdef CTRL_INA226
 INA226_WE ina226 = INA226_WE();
+#endif
+#ifdef CTRL_ADS1115
 ADS1115_WE ads1115 = ADS1115_WE();
+#endif
 RPI_PICO_Timer ITimer0(0);
 
 static int motor0_ticks_per_100ms = 0;
@@ -610,17 +615,21 @@ void setup()
   delay(100);
   neo_pixel_ctrl.light_green();
 
+#ifdef CTRL_INA226
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
   ina226.init();
   ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
   ina226.setAverage(AVERAGE_512);
   ina226.setConversionTime(CONV_TIME_4156);
+#endif
 
+#ifdef CTRL_ADS1115
   /* configure ADS1115 */
   ads1115.init();
   ads1115.setVoltageRange_mV(ADS1115_RANGE_6144); //comment line/change parameter to change range
   ads1115.setCompareChannels(ADS1115_COMP_0_GND); //comment line/change parameter to change channel
   ads1115.setMeasureMode(ADS1115_CONTINUOUS); //comment line/change parameter to change mode
+#endif
 
   /* Enable watchdog. */
   rp2040.wdt_begin(WATCHDOG_DELAY_ms);
@@ -686,6 +695,7 @@ void loop()
     mot1.pwm(0);
   }
 
+#ifdef CTRL_ADS1115
   /* get ADS1115 data ever 100 ms */
   if((now - prev_ads1115) > 100)
   {
@@ -715,6 +725,8 @@ void loop()
       ads1115.setCompareChannels_nonblock(ADS1115_COMP_0_GND);
     }
   }
+#endif
+#ifdef CTRL_INA226
   /* get INA226 data once/second */
   if((now - prev_ina226) > 1000)
   {
@@ -727,6 +739,7 @@ void loop()
     ina226_current_total_mAh += ina226_current_mA/3600.0;
     ina226_power_total_mWh += ina226_power_mW/3600.0;
   }
+#endif
   /* check motor timeout */
   if(timeout_ms_motor0<0xFFFF)
   {
