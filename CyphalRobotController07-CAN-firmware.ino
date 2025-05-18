@@ -1016,6 +1016,7 @@ bool TimerHandler0(struct repeating_timer *t)
 /* PID controller for motor 0 */
   int encoder0_new = encoder0.getCount();
   int encoder0_diff = encoder0_new - encoder0_old;
+  encoder0_diff = 0 - encoder0_diff; // invert encoder diff
   encoder0_old = encoder0_new;
 
   if ( motor0_enabled_flag == 1 )
@@ -1048,6 +1049,7 @@ bool TimerHandler0(struct repeating_timer *t)
 /* PID controller for motor 1 */
   int encoder1_new = encoder1.getCount();
   int encoder1_diff = encoder1_new - encoder1_old;
+  encoder1_diff = 0 - encoder1_diff; // invert encoder diff
   encoder1_old = encoder1_new;
 
   if ( motor1_enabled_flag == 1 )
