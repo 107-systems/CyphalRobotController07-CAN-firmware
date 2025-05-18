@@ -426,7 +426,7 @@ void setup()
           mot1.pwm(msg.value);
 
         prev_motor1_update=millis();
-        motor0_enabled_flag = 1;
+        motor1_enabled_flag = 1;
       });
 
   if (port_id_motor0_rpm != std::numeric_limits<CanardPortID>::max())
