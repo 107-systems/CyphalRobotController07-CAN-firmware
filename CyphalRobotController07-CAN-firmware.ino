@@ -109,6 +109,8 @@ static int motor0_ticks_per_100ms = 0;
 static int motor1_ticks_per_100ms = 0;
 static bool motor0_enabled_flag = 0;
 static bool motor1_enabled_flag = 0;
+static bool motor0_controller_enabled_flag = 0;
+static bool motor1_controller_enabled_flag = 0;
 
 DEBUG_INSTANCE(80, Serial);
 
@@ -413,6 +415,7 @@ void setup()
 
         prev_motor0_update = millis();
         motor0_enabled_flag = 1;
+        motor0_controller_enabled_flag = 0;
       });
 
   if (port_id_motor1 != std::numeric_limits<CanardPortID>::max())
@@ -427,6 +430,7 @@ void setup()
 
         prev_motor1_update=millis();
         motor1_enabled_flag = 1;
+        motor1_controller_enabled_flag = 0;
       });
 
   if (port_id_motor0_rpm != std::numeric_limits<CanardPortID>::max())
@@ -451,6 +455,7 @@ void setup()
           }
           prev_motor0_update = millis();
           motor0_enabled_flag = 1;
+          motor0_controller_enabled_flag = 1;
         }
       });
 
@@ -476,6 +481,7 @@ void setup()
           }
           prev_motor1_update = millis();
           motor1_enabled_flag = 1;
+          motor1_controller_enabled_flag = 1;
         }
       });
 
@@ -1019,7 +1025,7 @@ bool TimerHandler0(struct repeating_timer *t)
   encoder0_diff = 0 - encoder0_diff; // invert encoder diff
   encoder0_old = encoder0_new;
 
-  if ( motor0_enabled_flag == 1 )
+  if ( ( motor0_enabled_flag == 1 ) && ( motor0_controller_enabled_flag == 1 ) )
   {
     int motor0_error = motor0_ticks_per_100ms - encoder0_diff;
     motor0_error_sum = motor0_error_sum + motor0_error;
@@ -1052,7 +1058,7 @@ bool TimerHandler0(struct repeating_timer *t)
   encoder1_diff = 0 - encoder1_diff; // invert encoder diff
   encoder1_old = encoder1_new;
 
-  if ( motor1_enabled_flag == 1 )
+  if ( ( motor1_enabled_flag == 1 ) && ( motor1_controller_enabled_flag == 1 ) )
   {
     int motor1_error = motor1_ticks_per_100ms - encoder1_diff;
     motor1_error_sum = motor1_error_sum + motor1_error;
