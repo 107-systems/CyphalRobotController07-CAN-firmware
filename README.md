@@ -8,7 +8,7 @@
 
 Firmware for the [CyphalRobotController07/CAN](https://github.com/generationmake/CyphalRobotController07-CAN) board.
 
-## Installation of Arduino libraries 
+## Installation of Arduino libraries
 
 ```bash
 arduino-cli lib install 107-Arduino-Cyphal \
