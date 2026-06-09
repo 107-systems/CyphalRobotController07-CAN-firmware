@@ -8,6 +8,20 @@
 
 Firmware for the [CyphalRobotController07/CAN](https://github.com/generationmake/CyphalRobotController07-CAN) board.
 
+## Installation of Arduino libraries
+
+```bash
+arduino-cli lib install 107-Arduino-Cyphal \
+                        107-Arduino-Cyphal-Support \
+                        107-Arduino-MCP2515 \
+                        107-Arduino-littlefs \
+                        107-Arduino-24LCxx \
+                        rp2040-encoder-library \
+                        RPI_PICO_TimerInterrupt \
+                        107-Arduino-Debug \
+                        "Adafruit NeoPixel"
+```
+
 ## How-to-build/upload
 ```bash
 arduino-cli compile -b rp2040:rp2040:rpipico -v .
