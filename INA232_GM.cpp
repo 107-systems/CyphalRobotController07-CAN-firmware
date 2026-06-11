@@ -44,7 +44,7 @@ void INA232_GM::setAverage(INA232_AVERAGES averages){
 
 void INA232_GM::setConversionTime(INA232_CONV_TIME shuntConvTime, INA232_CONV_TIME busConvTime){
     uint16_t currentConfReg = readRegister(INA232_CONF_REG);
-    currentConfReg &= ~(0x01C0);  
+    currentConfReg &= ~(0x01C0);
     currentConfReg &= ~(0x0038);
     uint16_t convMask = (static_cast<uint16_t>(shuntConvTime))<<3;
     currentConfReg |= convMask;
