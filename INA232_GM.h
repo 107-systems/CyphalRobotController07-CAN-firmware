@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * This is a library for the INA232 Current and Power Sensor Module
- * 
+ *
  ******************************************************************************/
 
 #ifndef INA232_GM_H_
@@ -12,7 +12,7 @@
 #include <Wire.h>
 
 typedef enum INA232_AVERAGES{
-    INA232_AVERAGE_1       = 0x0000, 
+    INA232_AVERAGE_1       = 0x0000,
     INA232_AVERAGE_4       = 0x0200,
     INA232_AVERAGE_16      = 0x0400,
     INA232_AVERAGE_64      = 0x0600,
@@ -64,27 +64,27 @@ class INA232_GM
         static constexpr uint8_t INA232_CONF_REG         {0x00}; //Configuration Register
         static constexpr uint8_t INA232_SHUNT_REG        {0x01}; //Shunt Voltage Register
         static constexpr uint8_t INA232_BUS_REG          {0x02}; //Bus Voltage Register
-        static constexpr uint8_t INA232_PWR_REG          {0x03}; //Power Register 
+        static constexpr uint8_t INA232_PWR_REG          {0x03}; //Power Register
         static constexpr uint8_t INA232_CURRENT_REG      {0x04}; //Current flowing through Shunt
-        static constexpr uint8_t INA232_CAL_REG          {0x05}; //Calibration Register 
-        static constexpr uint8_t INA232_MASK_EN_REG      {0x06}; //Mask/Enable Register 
+        static constexpr uint8_t INA232_CAL_REG          {0x05}; //Calibration Register
+        static constexpr uint8_t INA232_MASK_EN_REG      {0x06}; //Mask/Enable Register
         static constexpr uint8_t INA232_ALERT_LIMIT_REG  {0x07}; //Alert Limit Register
         static constexpr uint8_t INA232_MAN_ID_REG       {0x3E}; //Contains Unique Manbufacturer Identification Number
 
         /* parameters, flag bits */
-        static constexpr uint16_t INA232_RST        {0x8000}; //Reset 
+        static constexpr uint16_t INA232_RST        {0x8000}; //Reset
 //        static constexpr uint16_t INA226_AFF        {0x0010}; //Alert function flag
 //        static constexpr uint16_t INA226_CVRF       {0x0008}; //Conversion ready flag
 //        static constexpr uint16_t INA226_OVF        {0x0004}; //Overflow flags
 //        static constexpr uint16_t INA226_ALERT_POL  {0x0002}; //Alert pin polarity - if set then active-high
         //Latch enable - if set then alert flag remains until mask/enable register is read
         //if not set then flag is cleared after next conversion within limits
-//        static constexpr uint16_t INA226_LATCH_EN   {0x0001}; 
+//        static constexpr uint16_t INA226_LATCH_EN   {0x0001};
 
         // Constructors: if not passed, 0x40 / Wire will be set as address / wire object
         INA232_GM(const int addr = 0x40) : _wire{&Wire}, i2cAddress{addr} {}
         INA232_GM(TwoWire *w, const int addr = 0x40) : _wire{w}, i2cAddress{addr} {}
-                
+
         bool init();
         void reset_INA232();
         void setCorrectionFactor(float corr);
@@ -104,7 +104,7 @@ class INA232_GM
         void startSingleMeasurementNoWait();
         bool isBusy();
         void powerDown();
-        void powerUp(); 
+        void powerUp();
         void waitUntilConversionCompleted();
         void setAlertPinActiveHigh();
         void enableAlertLatch();
@@ -114,13 +114,13 @@ class INA232_GM
         uint8_t getI2cErrorCode();
         bool overflow;
         bool convAlert;
-        bool limitAlert;    
-    
+        bool limitAlert;
+
     protected:
         INA232_AVERAGES deviceAverages;
         INA232_CONV_TIME deviceConvTime;
         INA232_MEASURE_MODE deviceMeasureMode;
-        INA232_ALERT_TYPE deviceAlertType; 
+        INA232_ALERT_TYPE deviceAlertType;
         TwoWire *_wire;
         int i2cAddress;
         uint16_t calVal;

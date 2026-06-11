@@ -65,7 +65,7 @@ void INA232_GM::setMeasureMode(INA232_MEASURE_MODE mode){
     writeRegister(INA232_CONF_REG, currentConfReg);
 }
 
-//set resistor and current range independant. resistor value in ohm, current range in A
+//set resistor and current range independent. resistor value in ohm, current range in A
 void INA232_GM::setResistorRange(float resistor, float current_range){
     if(current_range < 0) {
         current_range = 0.0819175/resistor;
