@@ -25,7 +25,7 @@ bool INA232_GM::init(){
 }
 
 void INA232_GM::reset_INA232(){
-    writeRegister(INA232_CONF_REG, INA232_RST); 
+    writeRegister(INA232_CONF_REG, INA232_RST);
 }
 
 void INA232_GM::setCorrectionFactor(float corr){
@@ -37,7 +37,7 @@ void INA232_GM::setCorrectionFactor(float corr){
 void INA232_GM::setAverage(INA232_AVERAGES averages){
     deviceAverages = averages;
     uint16_t currentConfReg = readRegister(INA232_CONF_REG);
-    currentConfReg &= ~(0x0E00);  
+    currentConfReg &= ~(0x0E00);
     currentConfReg |= deviceAverages;
     writeRegister(INA232_CONF_REG, currentConfReg);
 }
@@ -77,19 +77,19 @@ void INA232_GM::setResistorRange(float resistor, float current_range){
     currentDivider_mA = 0.001/current_LSB;
     pwrMultiplier_mW = 1000.0*25.0*current_LSB;
 
-    writeRegister(INA232_CAL_REG, calVal);          
+    writeRegister(INA232_CAL_REG, calVal);
 }
 
 float INA232_GM::getShuntVoltage_V(){
     int16_t val;
     val = static_cast<int16_t>(readRegister(INA232_SHUNT_REG));
-    return (val * 0.0000025 * corrFactor);  
+    return (val * 0.0000025 * corrFactor);
 }
 
 float INA232_GM::getShuntVoltage_mV(){
     int16_t val;
     val = static_cast<int16_t>(readRegister(INA232_SHUNT_REG));
-    return (val * 0.0025 * corrFactor); 
+    return (val * 0.0025 * corrFactor);
 }
 
 float INA232_GM::getBusVoltage_V(){
@@ -145,14 +145,14 @@ void INA232_GM::powerDown(){
 
 void INA232_GM::powerUp(){
     writeRegister(INA232_CONF_REG, confRegCopy);
-    delayMicroseconds(40);  
+    delayMicroseconds(40);
 }
 
 // Returns 1 if conversion is still ongoing
 bool INA232_GM::isBusy(){
     return (!(readRegister(INA232_MASK_EN_REG) &0x0008));
 }
-    
+
 void INA232_GM::waitUntilConversionCompleted(){
     readRegister(INA232_MASK_EN_REG); // clears CNVR (Conversion Ready) Flag
     uint16_t convReady = 0x0000;
@@ -178,17 +178,17 @@ void INA232_GM::enableConvReadyAlert(){
     val |= 0x0400;
     writeRegister(INA232_MASK_EN_REG, val);
 }
-/*    
+/*
 void INA226_WE::setAlertType(INA226_ALERT_TYPE type, float limit){
     deviceAlertType = type;
     uint16_t alertLimit = 0;
-    
+
     switch(deviceAlertType){
         case INA226_SHUNT_OVER:
-            alertLimit = limit * 400;           
+            alertLimit = limit * 400;
             break;
         case INA226_SHUNT_UNDER:
-            alertLimit = limit * 400; 
+            alertLimit = limit * 400;
             break;
         case INA226_CURRENT_OVER:
             deviceAlertType = INA226_SHUNT_OVER;
@@ -208,14 +208,14 @@ void INA226_WE::setAlertType(INA226_ALERT_TYPE type, float limit){
             alertLimit = limit / pwrMultiplier_mW;
             break;
     }
-    
+
     writeRegister(INA226_ALERT_LIMIT_REG, alertLimit);
-    
+
     uint16_t value = readRegister(INA226_MASK_EN_REG);
     value &= ~(0xF800);
     value |= deviceAlertType;
     writeRegister(INA226_MASK_EN_REG, value);
-    
+
 }
 */
 void INA232_GM::readAndClearFlags(){
@@ -228,9 +228,9 @@ void INA232_GM::readAndClearFlags(){
 uint8_t INA232_GM::getI2cErrorCode(){
     return i2cErrorCode;
 }
-    
 
-/************************************************ 
+
+/************************************************
     private functions
 *************************************************/
 
@@ -243,7 +243,7 @@ void INA232_GM::writeRegister(uint8_t reg, uint16_t val){
   _wire->write(lVal);
   _wire->endTransmission();
 }
-  
+
 uint16_t INA232_GM::readRegister(uint8_t reg){
   uint8_t MSByte = 0, LSByte = 0;
   uint16_t regValue = 0;
