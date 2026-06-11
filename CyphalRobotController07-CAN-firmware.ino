@@ -22,11 +22,13 @@
 #include <107-Arduino-24LCxx.hpp>
 #include <INA226_WE.h>
 #include <ADS1115_WE.h>
+#include "INA232_GM.h"
 #include "ifx007t.h"
 #include "pio_encoder.h"
 #include "RPi_Pico_TimerInterrupt.h"
 
 //#define CTRL_INA226
+#define CTRL_INA232
 //#define CTRL_ADS115
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
@@ -98,7 +100,10 @@ Ifx007t mot1;
 PioEncoder encoder0(ENCODER0_A, false, 0, COUNT_4X, pio1);
 PioEncoder encoder1(ENCODER1_A, false, 0, COUNT_4X, pio1);
 #ifdef CTRL_INA226
-INA226_WE ina226 = INA226_WE();
+INA226_WE powerMonitor = INA226_WE();
+#endif
+#ifdef CTRL_INA232
+INA232_GM powerMonitor = INA232_GM();
 #endif
 #ifdef CTRL_ADS1115
 ADS1115_WE ads1115 = ADS1115_WE();
@@ -339,7 +344,7 @@ const auto reg_rw_crc07_motor1_counts_per_rotation           = node_registry->ex
 void setup()
 {
   Serial.begin(115200);
-  // while(!Serial) { } /* only for debug */
+   while(!Serial) { } /* only for debug */
   delay(1000);
 
   Debug.prettyPrintOn(); /* Enable pretty printing on a shell. */
@@ -624,10 +629,20 @@ void setup()
 
 #ifdef CTRL_INA226
   /* configure INA226, current sensor, set conversion time and average to get a value every two seconds */
-  ina226.init();
-  ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
-  ina226.setAverage(AVERAGE_512);
-  ina226.setConversionTime(CONV_TIME_4156);
+  powerMonitor.init();
+  powerMonitor.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
+  powerMonitor.setAverage(AVERAGE_512);
+  powerMonitor.setConversionTime(CONV_TIME_4156);
+#endif
+
+#ifdef CTRL_INA232
+  /* configure INA232, current sensor, set conversion time and average to get a value every two seconds */
+  DBG_INFO("INA232 init");
+  powerMonitor.init();
+//  powerMonitor.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
+  powerMonitor.setAverage(INA232_AVERAGE_512);
+  powerMonitor.setConversionTime(INA232_CONV_TIME_4156);
+  DBG_INFO("Manufacturer ID: 0x%x", powerMonitor.getManufacturerID());
 #endif
 
 #ifdef CTRL_ADS1115
@@ -678,12 +693,12 @@ void loop()
   static unsigned long prev_input_current_total = 0;
   static unsigned long prev_input_power_total = 0;
 
-  static unsigned long prev_ina226 = 0;
-  static float ina226_busVoltage_V = 0.0;
-  static float ina226_current_mA = 0.0;
-  static float ina226_power_mW = 0.0;
-  static float ina226_current_total_mAh = 0.0;
-  static float ina226_power_total_mWh = 0.0;
+  static unsigned long prev_powerMonitor = 0;
+  static float powerMonitor_busVoltage_V = 0.0;
+  static float powerMonitor_current_mA = 0.0;
+  static float powerMonitor_power_mW = 0.0;
+  static float powerMonitor_current_total_mAh = 0.0;
+  static float powerMonitor_power_total_mWh = 0.0;
 
   static unsigned long prev_ads1115 = 0;
   static int ads1115_data0 = 0;
@@ -735,16 +750,35 @@ void loop()
 #endif
 #ifdef CTRL_INA226
   /* get INA226 data once/second */
-  if((now - prev_ina226) > 1000)
+  if((now - prev_powerMonitor) > 1000)
   {
-    prev_ina226 = now;
+    prev_powerMonitor = now;
 
-    ina226.readAndClearFlags();
-    ina226_busVoltage_V = ina226.getBusVoltage_V();
-    ina226_current_mA = ina226.getCurrent_mA();
-    ina226_power_mW = ina226.getBusPower();
-    ina226_current_total_mAh += ina226_current_mA/3600.0;
-    ina226_power_total_mWh += ina226_power_mW/3600.0;
+    powerMonitor.readAndClearFlags();
+    powerMonitor_busVoltage_V = powerMonitor.getBusVoltage_V();
+    powerMonitor_current_mA = powerMonitor.getCurrent_mA();
+    powerMonitor_power_mW = powerMonitor.getBusPower();
+    powerMonitor_current_total_mAh += powerMonitor_current_mA/3600.0;
+    powerMonitor_power_total_mWh += powerMonitor_power_mW/3600.0;
+  }
+#endif
+#ifdef CTRL_INA232
+  /* get INA232 data once/second */
+  if((now - prev_powerMonitor) > 1000)
+  {
+    prev_powerMonitor = now;
+
+    powerMonitor.readAndClearFlags();
+    powerMonitor_busVoltage_V = powerMonitor.getBusVoltage_V();
+    float powerMonitor_shuntVoltage_mV = powerMonitor.getShuntVoltage_mV();
+    powerMonitor_current_mA = powerMonitor.getCurrent_mA();
+    powerMonitor_power_mW = powerMonitor.getBusPower();
+    DBG_INFO("INA232 BusVoltage: %f V", powerMonitor_busVoltage_V);
+    DBG_INFO("INA232 ShuntVoltage: %f mV", powerMonitor_shuntVoltage_mV);
+    DBG_INFO("INA232 Current:    %f mA", powerMonitor_current_mA);
+    DBG_INFO("INA232 Power:      %f mW", powerMonitor_power_mW);
+    powerMonitor_current_total_mAh += powerMonitor_current_mA/3600.0;
+    powerMonitor_power_total_mWh += powerMonitor_power_mW/3600.0;
   }
 #endif
   /* check motor timeout */
@@ -827,7 +861,7 @@ void loop()
   if((now - prev_input_voltage) > (update_period_ms_input_voltage))
   {
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_voltage;
-    uavcan_input_voltage.value = ina226_busVoltage_V;
+    uavcan_input_voltage.value = powerMonitor_busVoltage_V;
     if(input_voltage_pub) input_voltage_pub->publish(uavcan_input_voltage);
 
     prev_input_voltage = now;
@@ -835,7 +869,7 @@ void loop()
   if((now - prev_input_current) > (update_period_ms_input_current))
   {
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_current;
-    uavcan_input_current.value = ina226_current_mA;
+    uavcan_input_current.value = powerMonitor_current_mA;
     if(input_current_pub) input_current_pub->publish(uavcan_input_current);
 
     prev_input_current = now;
@@ -843,7 +877,7 @@ void loop()
   if((now - prev_input_power) > (update_period_ms_input_power))
   {
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_power;
-    uavcan_input_power.value = ina226_power_mW;
+    uavcan_input_power.value = powerMonitor_power_mW;
     if(input_power_pub) input_power_pub->publish(uavcan_input_power);
 
     prev_input_power = now;
@@ -851,7 +885,7 @@ void loop()
   if((now - prev_input_current_total) > (update_period_ms_input_current_total))
   {
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_current_total;
-    uavcan_input_current_total.value = ina226_current_total_mAh;
+    uavcan_input_current_total.value = powerMonitor_current_total_mAh;
     if(input_current_total_pub) input_current_total_pub->publish(uavcan_input_current_total);
 
     prev_input_current_total = now;
@@ -859,7 +893,7 @@ void loop()
   if((now - prev_input_power_total) > (update_period_ms_input_power_total))
   {
     uavcan::primitive::scalar::Real32_1_0 uavcan_input_power_total;
-    uavcan_input_power_total.value = ina226_power_total_mWh;
+    uavcan_input_power_total.value = powerMonitor_power_total_mWh;
     if(input_power_total_pub) input_power_total_pub->publish(uavcan_input_power_total);
 
     prev_input_power_total = now;
