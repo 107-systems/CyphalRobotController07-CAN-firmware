@@ -134,4 +134,3 @@ class INA232_GM
 };
 
 #endif
-
