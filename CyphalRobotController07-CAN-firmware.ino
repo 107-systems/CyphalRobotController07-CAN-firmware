@@ -22,11 +22,13 @@
 #include <107-Arduino-24LCxx.hpp>
 #include <INA226_WE.h>
 #include <ADS1115_WE.h>
+#include "INA232_GM.h"
 #include "ifx007t.h"
 #include "pio_encoder.h"
 #include "RPi_Pico_TimerInterrupt.h"
 
 //#define CTRL_INA226
+#define CTRL_INA232
 //#define CTRL_ADS115
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
@@ -99,6 +101,9 @@ PioEncoder encoder0(ENCODER0_A, false, 0, COUNT_4X, pio1);
 PioEncoder encoder1(ENCODER1_A, false, 0, COUNT_4X, pio1);
 #ifdef CTRL_INA226
 INA226_WE ina226 = INA226_WE();
+#endif
+#ifdef CTRL_INA232
+INA232_GM ina226 = INA232_GM();
 #endif
 #ifdef CTRL_ADS1115
 ADS1115_WE ads1115 = ADS1115_WE();
@@ -339,7 +344,7 @@ const auto reg_rw_crc07_motor1_counts_per_rotation           = node_registry->ex
 void setup()
 {
   Serial.begin(115200);
-  // while(!Serial) { } /* only for debug */
+   while(!Serial) { } /* only for debug */
   delay(1000);
 
   Debug.prettyPrintOn(); /* Enable pretty printing on a shell. */
@@ -630,6 +635,16 @@ void setup()
   ina226.setConversionTime(CONV_TIME_4156);
 #endif
 
+#ifdef CTRL_INA232
+  /* configure INA232, current sensor, set conversion time and average to get a value every two seconds */
+  DBG_INFO("INA232 init");
+  ina226.init();
+//  ina226.setResistorRange(0.020,4.0); // choose resistor 20 mOhm and gain range up to 4 A
+  ina226.setAverage(INA232_AVERAGE_512);
+  ina226.setConversionTime(INA232_CONV_TIME_4156);
+  DBG_INFO("Manufacturer ID: 0x%x", ina226.getManufacturerID());
+#endif
+
 #ifdef CTRL_ADS1115
   /* configure ADS1115 */
   ads1115.init();
@@ -743,6 +758,25 @@ void loop()
     ina226_busVoltage_V = ina226.getBusVoltage_V();
     ina226_current_mA = ina226.getCurrent_mA();
     ina226_power_mW = ina226.getBusPower();
+    ina226_current_total_mAh += ina226_current_mA/3600.0;
+    ina226_power_total_mWh += ina226_power_mW/3600.0;
+  }
+#endif
+#ifdef CTRL_INA232
+  /* get INA226 data once/second */
+  if((now - prev_ina226) > 1000)
+  {
+    prev_ina226 = now;
+
+    ina226.readAndClearFlags();
+    ina226_busVoltage_V = ina226.getBusVoltage_V();
+    float ina226_shuntVoltage_mV = ina226.getShuntVoltage_mV();
+    ina226_current_mA = ina226.getCurrent_mA();
+    ina226_power_mW = ina226.getBusPower();
+    DBG_INFO("INA232 BusVoltage: %f V", ina226_busVoltage_V);
+    DBG_INFO("INA232 ShuntVoltage: %f mV", ina226_shuntVoltage_mV);
+    DBG_INFO("INA232 Current:    %f mA", ina226_current_mA);
+    DBG_INFO("INA232 Power:      %f mW", ina226_power_mW);
     ina226_current_total_mAh += ina226_current_mA/3600.0;
     ina226_power_total_mWh += ina226_power_mW/3600.0;
   }
